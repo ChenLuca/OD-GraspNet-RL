@@ -216,17 +216,13 @@ include_directories(
 add_executable(example src/example.cpp)
 target_link_libraries(example ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 
-add_executable(get_pointcloud_server src/get_pointcloud_server.cpp)
-target_link_libraries(get_pointcloud_server ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
-add_dependencies(get_pointcloud_server ${catkin_EXPORTED_TARGETS})
+add_executable(pcl_server src/pcl_server.cpp)
+target_link_libraries(pcl_server ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+add_dependencies(pcl_server ${catkin_EXPORTED_TARGETS})
 
-add_executable(get_pointcloud_client src/get_pointcloud_client.cpp)
-target_link_libraries(get_pointcloud_client ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
-add_dependencies(get_pointcloud_client ${catkin_EXPORTED_TARGETS})
-
-add_executable(draw_boundingBoxs src/draw_boundingBoxs.cpp)
-target_link_libraries(draw_boundingBoxs ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
-add_dependencies(draw_boundingBoxs ${catkin_EXPORTED_TARGETS})
+add_executable(pcl_client src/pcl_client.cpp)
+target_link_libraries(pcl_client ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+add_dependencies(pcl_client ${catkin_EXPORTED_TARGETS})
 
 # endif()
 

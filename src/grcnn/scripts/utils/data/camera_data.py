@@ -11,7 +11,7 @@ class CameraData:
     def __init__(self,
                  width=640,
                  height=480,
-                 output_size=224,
+                 output_size=(640, 480),
                  include_depth=True,
                  include_rgb=True
                  ):
@@ -27,10 +27,10 @@ class CameraData:
         if include_depth is False and include_rgb is False:
             raise ValueError('At least one of Depth or RGB must be specified.')
 
-        left = (width - output_size) // 2
-        top = (height - output_size) // 2
-        right = (width + output_size) // 2
-        bottom = (height + output_size) // 2
+        left = (width - output_size[0]) // 2
+        top = (height - output_size[1]) // 2
+        right = (width + output_size[0]) // 2
+        bottom = (height + output_size[1]) // 2
 
         self.bottom_right = (bottom, right)
         self.top_left = (top, left)

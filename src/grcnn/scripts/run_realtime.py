@@ -97,25 +97,26 @@ if __name__ == '__main__':
                     pred = net.predict(xc)
 
                     q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
+
                     gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
+
                     if gs is not None:
                         for g in gs:
                             grcnn_result_msg = grcnn_result()
-                            grcnn_result_msg.x = g.center[0]
-                            grcnn_result_msg.y = g.center[1]
+                            grcnn_result_msg.y = g.center[0]
+                            grcnn_result_msg.x = g.center[1]
                             grcnn_result_msg.angle = g.angle
                             grcnn_result_msg.length = g.length
                             grcnn_result_msg.width = g.width
-
-                            print("center:{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
                             pub_grcnn_result.publish(grcnn_result_msg)
+                            print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
 
-                    # plot_results(fig=fig,
-                    #             rgb_img=cam_data.get_rgb(rgb, False),
-                    #             depth_img=np.squeeze(cam_data.get_depth(depth)),
-                    #             grasp_q_img=q_img,
-                    #             grasp_angle_img=ang_img,
-                    #             no_grasps=args.n_grasps,
-                    #             grasp_width_img=width_img)
+                    plot_results(fig=fig,
+                                rgb_img=cam_data.get_rgb(rgb, False),
+                                depth_img=np.squeeze(cam_data.get_depth(depth)),
+                                grasp_q_img=q_img,
+                                grasp_angle_img=ang_img,
+                                no_grasps=args.n_grasps,
+                                grasp_width_img=width_img)
         finally:
             print('bye grcnn_inference!')

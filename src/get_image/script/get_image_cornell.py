@@ -58,7 +58,7 @@ def depth_callback(Image):
 
 if __name__ == '__main__':
 
-    rospy.init_node('get_image_cornell', anonymous=True)
+    rospy.init_node('intel_d435i_get_image_cornell', anonymous=True)
 
     rospy.Subscriber("/camera/color/image_raw", Image, rgb_callback)
     rospy.Subscriber("/camera/aligned_depth_to_color/image_raw", Image, depth_callback)

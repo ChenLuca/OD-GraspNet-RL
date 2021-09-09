@@ -1,3 +1,0 @@
-soda 0
-coffee 1
-juice 2
