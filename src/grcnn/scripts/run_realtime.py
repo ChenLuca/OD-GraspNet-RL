@@ -21,6 +21,8 @@ from hardware.device import get_device
 from inference.post_process import post_process_output
 from utils.data.camera_data import CameraData
 from utils.visualisation.plot import save_results, plot_results
+from utils.dataset_processing.grasp import detect_grasps
+from grcnn.msg import grcnn_result
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,6 +31,7 @@ depth_bridge = CvBridge()
 
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
+no_grasps = 1
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
@@ -63,15 +66,15 @@ def depth_callback(image):
 if __name__ == '__main__':
 
     args = parse_args()
-    #     # Connect to Camera
-    # logging.info('Connecting to camera...')
-    # cam = RealSenseCamera(device_id=908212070822)
-    # cam.connect()
+
+    pub_grcnn_result = rospy.Publisher('grcnn/result', grcnn_result, queue_size=10)
+    rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
+    rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+
     cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
 
     rospy.init_node('grcnn_inference', anonymous=True)
-    rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
-    rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+
 
     # Load Network
     logging.info('Loading model...')
@@ -80,35 +83,39 @@ if __name__ == '__main__':
 
     # Get the compute device
     device = get_device(args.force_cpu)
-    # rospy.spin()
+
     while not rospy.is_shutdown():
         try:
             fig = plt.figure(figsize=(10, 10))
             while True:
                 rgb = rgb_image
-                
-                depth_image = np.expand_dims(depth_image, axis=2)
-                depth = depth_image
+                depth = np.expand_dims(depth_image, axis=2)
                 x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
+
                 with torch.no_grad():
                     xc = x.to(device)
                     pred = net.predict(xc)
 
                     q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
+                    gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
+                    if gs is not None:
+                        for g in gs:
+                            grcnn_result_msg = grcnn_result()
+                            grcnn_result_msg.x = g.center[0]
+                            grcnn_result_msg.y = g.center[1]
+                            grcnn_result_msg.angle = g.angle
+                            grcnn_result_msg.length = g.length
+                            grcnn_result_msg.width = g.width
 
-                    plot_results(fig=fig,
-                                rgb_img=cam_data.get_rgb(rgb, False),
-                                depth_img=np.squeeze(cam_data.get_depth(depth)),
-                                grasp_q_img=q_img,
-                                grasp_angle_img=ang_img,
-                                no_grasps=args.n_grasps,
-                                grasp_width_img=width_img)
+                            print("center:{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
+                            pub_grcnn_result.publish(grcnn_result_msg)
+
+                    # plot_results(fig=fig,
+                    #             rgb_img=cam_data.get_rgb(rgb, False),
+                    #             depth_img=np.squeeze(cam_data.get_depth(depth)),
+                    #             grasp_q_img=q_img,
+                    #             grasp_angle_img=ang_img,
+                    #             no_grasps=args.n_grasps,
+                    #             grasp_width_img=width_img)
         finally:
-            save_results(
-                rgb_img=cam_data.get_rgb(rgb, False),
-                depth_img=np.squeeze(cam_data.get_depth(depth)),
-                grasp_q_img=q_img,
-                grasp_angle_img=ang_img,
-                no_grasps=args.n_grasps,
-                grasp_width_img=width_img
-            )
+            print('bye grcnn_inference!')
