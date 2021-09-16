@@ -35,7 +35,7 @@ no_grasps = 1
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default='/home/luca/code/RVP_GGCNN_ws/src/grcnn/scripts/trained-models/my_model/epoch_31_iou_0.96',
+    parser.add_argument('--network', type=str, default='/home/ur5/code/RVP_GGCNN/src/grcnn/scripts/trained-models/my_model/20210916/dirty_table_epoch_09_iou_0.67',
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -52,7 +52,7 @@ def parse_args():
 def rgb_callback(image):
     global rgb_image
     try:
-        rgb_image = rgb_bridge.imgmsg_to_cv2(image, "bgr8")
+        rgb_image = rgb_bridge.imgmsg_to_cv2(image, "rgb8")
     except CvBridgeError as e:
         print(e)
 

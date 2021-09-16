@@ -390,9 +390,9 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   // ROS to PCL
   pcl::fromROSMsg(*cloud_msg, *cloud);
 
-  do_Passthrough(cloud, filter_cloud, "x", -1, 1);
-  do_Passthrough(filter_cloud, filter_cloud, "y", -1, 1);
-  do_Passthrough(filter_cloud, filter_cloud, "z", -1, 3.86);
+  do_Passthrough(cloud, filter_cloud, "x", -0.28, 0.35);
+  do_Passthrough(filter_cloud, filter_cloud, "y", -1, 0.08);
+  do_Passthrough(filter_cloud, filter_cloud, "z", -1, 0.85);
   do_VoxelGrid(filter_cloud, filter_cloud);
 
   if(ROTATE_POINTCLOUD)
@@ -462,21 +462,17 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   ROS_INFO("Done do_Callback_PointCloud");
 }
 
-string SaveImage_Counter_Wrapper(int num)
+string SaveImage_Counter_Wrapper(int num, int object_number)
 {
   string Complement = "";
 
   if (num < 10)
   {
-    Complement = "000";
-  }
-  else if(num < 100)
-  {
-    Complement = "00";
+    Complement = to_string(object_number) + "0";
   }
   else
   {
-    Complement = "0";
+    Complement = to_string(object_number);
   }
 
   return (Complement + to_string(num));
@@ -484,18 +480,20 @@ string SaveImage_Counter_Wrapper(int num)
 
 bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
 {
-  string Save_Data_path = "/home/luca/datasets/my_grasp_dataset/";
+  string Save_Data_path = "/home/ur5/datasets/my_grasp_dataset/";
   string Name_pcd = "pcd";
   string Name_RGB_Image_root = "r.png";
   string Name_Depth_Image_root = "d.tiff";
 
   //save RGB image as .png format
-  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter) + Name_RGB_Image_root, Mapping_RGB_Image);
+  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_RGB_Image_root, Mapping_RGB_Image);
 
   //save depth image as .tiff format
-  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter) + Name_Depth_Image_root, Mapping_Depth_Image);
+  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_Depth_Image_root, Mapping_Depth_Image);
 
   take_picture_counter++;
+
+  res.back = take_picture_counter;
 
   ROS_INFO("Done SaveImage!");
 
