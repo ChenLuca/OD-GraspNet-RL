@@ -440,7 +440,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   do_PerspectiveProjection(filter_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_Rotation);
 
   //do dilate for sparse image result
-  cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));  
+  cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
 
@@ -485,7 +485,7 @@ string SaveImage_Counter_Wrapper(int num, int object_number)
 
 bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
 {
-  string Save_Data_path = "/home/luca/datasets/my_grasp_dataset/";
+  string Save_Data_path = "/home/ur5/datasets/my_grasp_dataset/";
   string Name_pcd = "pcd";
   string Name_RGB_Image_root = "r.png";
   string Name_Depth_Image_root = "d.tiff";
