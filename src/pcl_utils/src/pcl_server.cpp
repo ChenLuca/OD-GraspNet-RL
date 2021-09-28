@@ -314,7 +314,6 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
       PwP.point = cloudPoints[i];
       PwP.pixel.x = idxX;
       PwP.pixel.y = idxY;
-
       PwPs.push_back(PwP);
 
       Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[0] = (int)input_cloud->points[i].b;
@@ -329,8 +328,6 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
         Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
-
-
   }
 }
 
@@ -400,61 +397,67 @@ void do_VoxelGrid(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
   sor.filter (*output_cloud);      //儲存濾波後的點雲
 }
 
-void do_calculate_number_of_pointcloud(int x, int y, float angle, std::vector<Point_with_Pixel> &PwPs, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
+void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
 {
+  Eigen::Vector3f open_vector(1, 0, 0);
+  Eigen::Vector3f approach_vector(0, 0, 1);
+  Eigen::Vector3f normal_vector(0, 0, 0);
 
-    Eigen::Vector3f open_vector(1, 0, 0);
-    Eigen::Vector3f approach_vector(0, 0, 1);
-    Eigen::Vector3f normal_vector(0, 0, 0);
+  float d_1 = 0, d_2 = 0, d_3 = 0;
+  float h_1 = 0.05, h_2 = 0.05, h_3 = 0.05;
 
-    float d_1 = 0, d_2 = 0, d_3 = 0;
-    float h_1 = 0.05, h_2 = 0.05, h_3 = 0.05;
+  open_vector(0) = cos(angle);
+  open_vector(1) = sin(angle);
 
-    normal_vector = approach_vector.cross(open_vector);
+  normal_vector = approach_vector.cross(open_vector);
 
-    cout << "normal_vector " << normal_vector <<endl;
+  cout << "normal_vector " << normal_vector <<endl;
 
-    for(int i = 0 ; i < PwPs.size() ; i ++)
+  cout << "grcnn_predict.x: " << grcnn_predict.x <<endl;
+
+  cout << "grcnn_predict.y: " << grcnn_predict.y <<endl;
+
+  for(int i = 0 ; i < PwPs.size() ; i ++)
+  {
+    if (PwPs[i].pixel.x == grcnn_predict.x & PwPs[i].pixel.y == grcnn_predict.y)//need to be check for more carefully! Maybe multi points can be projected to the same point!
     {
-      if (PwPs[i].pixel.x == x & PwPs[i].pixel.y == y)
+      float point_x, point_y, point_z;
+      int number_of_point = 0;
+
+      point_x = PwPs[i].point.x;
+      point_y = PwPs[i].point.y;
+      point_z = PwPs[i].point.z;
+
+      d_1 = point_x*open_vector(0) + point_y*open_vector(1) + point_z*open_vector(2);
+      d_2 = point_x*approach_vector(0) + point_y*approach_vector(1) + point_z*approach_vector(2);
+      d_3 = point_x*normal_vector(0) + point_y*normal_vector(1) + point_z*normal_vector(2);
+
+      cout << "x: " << point_x << " y: " << point_y  << " z: " << point_z  <<endl;
+
+      cout << "d_1: " << d_1 << " d_2: " << d_2 << " d_3: " << d_3 << endl;
+      
+      cout << "input_cloud->size(): " << input_cloud->size() << endl;
+
+      if(input_cloud->size()!= 0)
       {
-        float point_x, point_y, point_z;
-        point_x = PwPs[i].point.x;
-        point_y = PwPs[i].point.y;
-        point_z = PwPs[i].point.z;
-
-        cout << "x: " << point_x << " y: " << point_y  << " z: " << point_z  <<endl;
-
-        d_1 = point_x*open_vector(0) + point_y*open_vector(1) + point_z*open_vector(2);
-        d_2 = point_x*approach_vector(0) + point_y*approach_vector(1) + point_z*approach_vector(2);
-        d_3 = point_x*normal_vector(0) + point_y*normal_vector(1) + point_z*normal_vector(2);
-
-        cout << "d_1: " << d_1 << " d_2: " << d_2 << " d_3: " << d_3 << endl;
-        
-        int number_of_point = 0;
-
-        cout << "input_cloud->size(): " << input_cloud->size() << endl;
-        if(input_cloud->size()!= 0)
+        for (int i = 0; i < input_cloud->size(); i++)
         {
-          for (int i = 0; i < input_cloud->size(); i++)
+          if (abs(input_cloud->points[i].x*open_vector(0) + input_cloud->points[i].y*open_vector(1) + input_cloud->points[i].z*open_vector(2) - d_1) < h_1)
           {
-            if (abs(input_cloud->points[i].x*open_vector(0) + input_cloud->points[i].y*open_vector(1) + input_cloud->points[i].z*open_vector(2) - d_1) < h_1)
+            if (abs(input_cloud->points[i].x*approach_vector(0) + input_cloud->points[i].y*approach_vector(1) + input_cloud->points[i].z*approach_vector(2) - d_2) < h_2)
             {
-              if (abs(input_cloud->points[i].x*approach_vector(0) + input_cloud->points[i].y*approach_vector(1) + input_cloud->points[i].z*approach_vector(2) - d_2) < h_2)
+              if (abs(input_cloud->points[i].x*normal_vector(0) + input_cloud->points[i].y*normal_vector(1) + input_cloud->points[i].z*normal_vector(2) - d_3) < h_3)
               {
-                if (abs(input_cloud->points[i].x*normal_vector(0) + input_cloud->points[i].y*normal_vector(1) + input_cloud->points[i].z*normal_vector(2) - d_3) < h_3)
-                {
-                  number_of_point++;
-                }
+                number_of_point++;
               }
             }
           }
         }
-        cout << "number_of_point:" << number_of_point << endl;
-        break;
       }
+      cout << "number_of_point:" << number_of_point << endl;
+      break;
     }
-
+  }
 }
 
 void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
@@ -518,8 +521,13 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
   
-  float grasp_angle = 0;
-  do_calculate_number_of_pointcloud(320, 360, grasp_angle, PwPs, filter_cloud);
+  float grasp_angle = 0.3;
+  cv::Point2f grcnn_predict;
+
+  grcnn_predict.x = 320;
+  grcnn_predict.y = 360;
+
+  do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud);
   
   if(SHOW_CV_WINDOWS)
   {
