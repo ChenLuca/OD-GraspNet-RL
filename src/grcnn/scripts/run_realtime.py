@@ -35,7 +35,7 @@ no_grasps = 1
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default='/home/ur5/code/RVP_GGCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65',
+    parser.add_argument('--network', type=str, default='/home/luca/code/RVP_GGCNN_ws/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65',
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')

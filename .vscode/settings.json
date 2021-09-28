@@ -64,6 +64,9 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "random": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "unordered_set": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp"
     }
 }
