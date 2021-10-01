@@ -111,12 +111,12 @@ if __name__ == '__main__':
                             pub_grcnn_result.publish(grcnn_result_msg)
                             print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
 
-                    plot_results(fig=fig,
-                                rgb_img=cam_data.get_rgb(rgb, False),
-                                depth_img=np.squeeze(cam_data.get_depth(depth)),
-                                grasp_q_img=q_img,
-                                grasp_angle_img=ang_img,
-                                no_grasps=args.n_grasps,
-                                grasp_width_img=width_img)
+                    # plot_results(fig=fig,
+                    #             rgb_img=cam_data.get_rgb(rgb, False),
+                    #             depth_img=np.squeeze(cam_data.get_depth(depth)),
+                    #             grasp_q_img=q_img,
+                    #             grasp_angle_img=ang_img,
+                    #             no_grasps=args.n_grasps,
+                    #             grasp_width_img=width_img)
         finally:
             print('bye grcnn_inference!')

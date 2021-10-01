@@ -7,6 +7,8 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
+#include "std_msgs/Int64.h"
+
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/highgui/highgui.hpp>
@@ -49,14 +51,14 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds;
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
 image_transport::Publisher pubProjectRGBImage;
   
 //宣告的輸出的點雲的格式
-sensor_msgs::PointCloud2 Filter_output;   
+sensor_msgs::PointCloud2 Filter_output, grab_output;   
 //==============================
 
 //=========Define PCL parameters=========
@@ -68,6 +70,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr filter_cloud (new pcl::PointCloud<pcl::Po
 
 //Rotate Pointcloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr Rotate_output_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of gripped area
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr grab_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 struct Point_with_Pixel
 {
@@ -404,10 +409,10 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   Eigen::Vector3f normal_vector(0, 0, 0);
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
-  float h_1 = 0.05, h_2 = 0.05, h_3 = 0.05;
+  float h_1 =0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
 
-  open_vector(0) = cos(angle);
-  open_vector(1) = sin(angle);
+  open_vector(0) = cos(-1*angle);
+  open_vector(1) = sin(-1*angle);
 
   normal_vector = approach_vector.cross(open_vector);
 
@@ -438,6 +443,8 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       
       cout << "input_cloud->size(): " << input_cloud->size() << endl;
 
+      grab_cloud->clear();
+
       if(input_cloud->size()!= 0)
       {
         for (int i = 0; i < input_cloud->size(); i++)
@@ -448,13 +455,21 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
             {
               if (abs(input_cloud->points[i].x*normal_vector(0) + input_cloud->points[i].y*normal_vector(1) + input_cloud->points[i].z*normal_vector(2) - d_3) < h_3)
               {
+
+                grab_cloud->push_back(input_cloud->points[i]);
                 number_of_point++;
               }
             }
           }
         }
       }
+      std_msgs::Int64 num;
+      num.data = number_of_point;
       cout << "number_of_point:" << number_of_point << endl;
+      pubNumGrabPoint.publish(num);
+      pcl::toROSMsg(*grab_cloud, grab_output);
+      grab_output.header.frame_id = "depth_camera_link";
+      pubGrabPointClouds.publish(grab_output);
       break;
     }
   }
@@ -521,11 +536,11 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
   
-  float grasp_angle = 0.3;
+  float grasp_angle = 0.0;
   cv::Point2f grcnn_predict;
 
-  grcnn_predict.x = 320;
-  grcnn_predict.y = 360;
+  grcnn_predict.x = 280;
+  grcnn_predict.y = 240;
 
   do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud);
   
@@ -604,14 +619,19 @@ int main (int argc, char** argv)
 
   // Create ROS preccess pointcloud publisher for the rotate point cloud
   pubRotatePointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Rotate_PointClouds", 30);
+
+  // Create ROS preccess pointcloud publisher for the point cloud of gripped area
+  pubGrabPointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds", 30);
   
+
+  pubNumGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Grab_PointClouds", 30);
+
   // Create ROS subscriber for the input point cloud
   //azure kinect dk
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
 
   // Create ROS Service for the input point cloud
   ros::ServiceServer saveImage_service = nh.advertiseService("snapshot", do_SaveImage);
-
 
   ros::spin();
 }
