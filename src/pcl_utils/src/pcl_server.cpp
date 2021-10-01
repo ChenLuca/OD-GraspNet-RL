@@ -608,7 +608,7 @@ bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Respon
 int main (int argc, char** argv)
 {
   // Initialize ROS
-  ros::init (argc, argv, "push_to_cloud_stitched");
+  ros::init (argc, argv, "pcl_server");
 
   ros::NodeHandle nh;
   
