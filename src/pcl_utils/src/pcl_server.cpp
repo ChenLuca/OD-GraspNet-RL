@@ -8,7 +8,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include "std_msgs/Int64.h"
-
+#include "pcl_utils/grcnn_result.h"
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/highgui/highgui.hpp>
@@ -97,6 +97,7 @@ double cx = 325.506, cy = 332.234, fx = 503.566, fy = 503.628;
 
 bool SHOW_CV_WINDOWS = false;
 bool ROTATE_POINTCLOUD =false;
+pcl_utils::grcnn_result grcnn_input;
 //==============================
 
 ////=========random=========
@@ -402,25 +403,46 @@ void do_VoxelGrid(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
   sor.filter (*output_cloud);      //儲存濾波後的點雲
 }
 
-void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
+void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
+                                       pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
 {
-  Eigen::Vector3f open_vector(1, 0, 0);
+  Eigen::Vector3f open_vector(0, 1, 0);
   Eigen::Vector3f approach_vector(0, 0, 1);
   Eigen::Vector3f normal_vector(0, 0, 0);
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
-  float h_1 =0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
+  float h_1 = 0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
 
   open_vector(0) = cos(-1*angle);
   open_vector(1) = sin(-1*angle);
 
   normal_vector = approach_vector.cross(open_vector);
 
-  cout << "normal_vector " << normal_vector <<endl;
+  open_vector.normalize();
+  approach_vector.normalize();
+  normal_vector.normalize();
 
-  cout << "grcnn_predict.x: " << grcnn_predict.x <<endl;
+  cout << "open_vector \n" << open_vector <<"\n\n";
+  cout << "approach_vector \n" << approach_vector <<"\n\n";
+  cout << "normal_vector \n" << normal_vector <<"\n\n\n";
 
-  cout << "grcnn_predict.y: " << grcnn_predict.y <<endl;
+  Eigen::Matrix3f mat_open, mat_approach, mat_normal, mat_all;
+  float rotation_open = 0.0, rotation_approach = 0.0, rotation_normal = 0.0;
+
+  mat_open = Eigen::AngleAxisf(rotation_open, open_vector);
+  mat_approach = Eigen::AngleAxisf(rotation_approach, approach_vector);
+  mat_normal = Eigen::AngleAxisf(rotation_normal, normal_vector);
+  mat_all = mat_approach * mat_open * mat_normal;
+  
+  cout << "mat_all \n" << mat_all << "\n\n";
+
+  cout << "new open_vector \n" << mat_all * open_vector << "\n\n";
+  cout << "new approach_vector \n" << mat_all * approach_vector << "\n\n";
+  cout << "new normal_vector \n" << mat_all * normal_vector << "\n\n";
+
+  // cout << "grcnn_predict.x: " << grcnn_predict.x <<endl;
+
+  // cout << "grcnn_predict.y: " << grcnn_predict.y <<endl;
 
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
@@ -473,6 +495,14 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       break;
     }
   }
+}
+void do_Callback_GrcnnResult(pcl_utils::grcnn_result result)
+{
+  grcnn_input.x = result.x;
+  grcnn_input.y = result.y;
+  grcnn_input.angle = result.angle;
+  grcnn_input.length = result.length;
+  grcnn_input.width = result.width;
 }
 
 void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
@@ -536,10 +566,13 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
   
-  float grasp_angle = 0.0;
+  float grasp_angle = grcnn_input.angle;
   cv::Point2f grcnn_predict;
 
-  grcnn_predict.x = 280;
+  // grcnn_predict.x = grcnn_input.x;
+  // grcnn_predict.y = grcnn_input.y;
+
+  grcnn_predict.x = 260;
   grcnn_predict.y = 240;
 
   do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud);
@@ -629,6 +662,9 @@ int main (int argc, char** argv)
   // Create ROS subscriber for the input point cloud
   //azure kinect dk
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
+
+  ros::Subscriber subGrcnnResult = nh.subscribe<pcl_utils::grcnn_result> ("grcnn/result", 1, do_Callback_GrcnnResult);
+
 
   // Create ROS Service for the input point cloud
   ros::ServiceServer saveImage_service = nh.advertiseService("snapshot", do_SaveImage);

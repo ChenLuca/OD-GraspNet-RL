@@ -15,8 +15,14 @@ import struct
 from std_msgs.msg import Int64
 from cv_bridge import CvBridge, CvBridgeError
 
-from tf_agents.networks import q_network
-from tf_agents.agents.dqn import dqn_agent
+from tf_agents.environments import py_environment
+from tf_agents.environments import tf_environment
+from tf_agents.environments import tf_py_environment
+from tf_agents.environments import utils
+from tf_agents.specs import array_spec
+from tf_agents.environments import wrappers
+from tf_agents.environments import suite_gym
+from tf_agents.trajectories import time_step as ts
 
 rgb_bridge = CvBridge()
 depth_bridge = CvBridge()
@@ -28,6 +34,48 @@ number_of_grab_pointClouds = 0
 
 xyz = np.array([[0,0,0]])
 rgb = np.array([[0,0,0]])
+
+class GraspEnv(py_environment.PyEnvironment):
+    def __init__(self):
+        self._action_spec = array_spec.BoundedArraySpec(
+            shape=(), dtype=np.int32, minimum=0, maximum=1, name='action')
+        self._observation_spec = array_spec.BoundedArraySpec(
+            shape=(1,), dtype=np.int32, minimum=0, name='observation')
+        self._state = 0
+        self._episode_ended = False
+    
+    def action_spec(self):
+        return self._action_spec
+
+    def observation_spec(self):
+        return self._observation_spec
+
+    def _reset(self):
+        self._state = 0
+        self._episode_ended = False
+        return ts.restart(np.array([self._state], dtype=np.int32))
+    
+    def _step(self, action):
+        if self._episode_ended:
+            # The last action ended the episode. Ignore the current action and start
+            # a new episode.
+            return self.reset()
+
+        # Make sure episodes don't go on forever.
+        if action == 1:
+            self._episode_ended = True
+        elif action == 0:
+            new_card = np.random.randint(1, 11)
+            self._state += new_card
+        else:
+            raise ValueError('`action` should be 0 or 1.')
+
+        if self._episode_ended or self._state >= 21:
+            reward = self._state - 21 if self._state <= 21 else -21
+            return ts.termination(np.array([self._state], dtype=np.int32), reward)
+        else:
+            return ts.transition(
+                np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
 
 def grab_pointClouds_callback(ros_point_cloud):
     global xyz, rgb
@@ -88,6 +136,11 @@ if __name__ == '__main__':
     rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
     rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, number_of_grab_pointClouds_callback)
+
+    environment = GraspEnv()
+    utils.validate_py_environment(environment, episodes=5)
+
+    tf_env = tf_py_environment.TFPyEnvironment(environment)
 
     while not rospy.is_shutdown():
         pass
