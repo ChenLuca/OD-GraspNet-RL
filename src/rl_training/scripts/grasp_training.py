@@ -8,6 +8,8 @@ import numpy as np
 import tensorflow as tf
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
+from rl_training.msg import AngleAxis_rotation_msg
+
 import sensor_msgs.point_cloud2 as pc2
 import ctypes
 import struct
@@ -137,10 +139,17 @@ if __name__ == '__main__':
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
     rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, number_of_grab_pointClouds_callback)
 
+    pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
+
     environment = GraspEnv()
     utils.validate_py_environment(environment, episodes=5)
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
+    rotation = AngleAxis_rotation_msg()
+    rotation.rotation_open = 0
+    rotation.rotation_approach = 0
+    rotation.rotation_normal = 0
+
     while not rospy.is_shutdown():
-        pass
+        pub_AngleAxisRotation.publish(rotation)

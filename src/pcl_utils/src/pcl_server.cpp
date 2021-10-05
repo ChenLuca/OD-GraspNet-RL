@@ -9,6 +9,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include "std_msgs/Int64.h"
 #include "pcl_utils/grcnn_result.h"
+#include "pcl_utils/AngleAxis_rotation_msg.h"
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/highgui/highgui.hpp>
@@ -98,6 +99,8 @@ double cx = 325.506, cy = 332.234, fx = 503.566, fy = 503.628;
 bool SHOW_CV_WINDOWS = false;
 bool ROTATE_POINTCLOUD =false;
 pcl_utils::grcnn_result grcnn_input;
+float Angle_axis_rotation_open = 0.0, Angle_axis_rotation_approach = 0.0, Angle_axis_rotation_normal = 0.0;
+
 //==============================
 
 ////=========random=========
@@ -403,8 +406,39 @@ void do_VoxelGrid(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
   sor.filter (*output_cloud);      //儲存濾波後的點雲
 }
 
+void do_Callback_AngleAxisRotation(pcl_utils::AngleAxis_rotation_msg AngleAxis_rotation)
+{
+  Angle_axis_rotation_open = AngleAxis_rotation.rotation_open;
+  Angle_axis_rotation_approach = AngleAxis_rotation.rotation_approach;
+  Angle_axis_rotation_normal = AngleAxis_rotation.rotation_normal;
+}
+
+void do_AngelAxis(Eigen::Vector3f &open_vector, Eigen::Vector3f &approach_vector, Eigen::Vector3f &normal_vector,
+                  float rotation_open, float rotation_approach, float rotation_normal)
+{
+  open_vector.normalize();
+  approach_vector.normalize();
+  normal_vector.normalize();
+
+  Eigen::Matrix3f mat_open, mat_approach, mat_normal, AngleAxis_mat_all;
+
+  cout << "rotation_open \n" << rotation_open <<"\n\n";
+  cout << "rotation_approach \n" << rotation_approach <<"\n\n";
+  cout << "rotation_normal \n" << rotation_normal <<"\n\n\n";
+
+  mat_open = Eigen::AngleAxisf(rotation_open, open_vector);
+  mat_approach = Eigen::AngleAxisf(rotation_approach, approach_vector);
+  mat_normal = Eigen::AngleAxisf(rotation_normal, normal_vector);
+  AngleAxis_mat_all = mat_approach * mat_open * mat_normal;
+  
+  // cout << "AngleAxis_mat_all \n" << AngleAxis_mat_all << "\n\n";
+  open_vector = AngleAxis_mat_all * open_vector;
+  approach_vector = AngleAxis_mat_all * approach_vector;
+  normal_vector = AngleAxis_mat_all * normal_vector;
+}
+
 void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
-                                       pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
+                                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
 {
   Eigen::Vector3f open_vector(0, 1, 0);
   Eigen::Vector3f approach_vector(0, 0, 1);
@@ -418,27 +452,18 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
   normal_vector = approach_vector.cross(open_vector);
 
-  open_vector.normalize();
-  approach_vector.normalize();
-  normal_vector.normalize();
-
-  cout << "open_vector \n" << open_vector <<"\n\n";
-  cout << "approach_vector \n" << approach_vector <<"\n\n";
-  cout << "normal_vector \n" << normal_vector <<"\n\n\n";
-
-  Eigen::Matrix3f mat_open, mat_approach, mat_normal, mat_all;
-  float rotation_open = 0.0, rotation_approach = 0.0, rotation_normal = 0.0;
-
-  mat_open = Eigen::AngleAxisf(rotation_open, open_vector);
-  mat_approach = Eigen::AngleAxisf(rotation_approach, approach_vector);
-  mat_normal = Eigen::AngleAxisf(rotation_normal, normal_vector);
-  mat_all = mat_approach * mat_open * mat_normal;
+  // cout << "open_vector \n" << open_vector <<"\n\n";
+  // cout << "approach_vector \n" << approach_vector <<"\n\n";
+  // cout << "normal_vector \n" << normal_vector <<"\n\n\n";
   
-  cout << "mat_all \n" << mat_all << "\n\n";
-
-  cout << "new open_vector \n" << mat_all * open_vector << "\n\n";
-  cout << "new approach_vector \n" << mat_all * approach_vector << "\n\n";
-  cout << "new normal_vector \n" << mat_all * normal_vector << "\n\n";
+  do_AngelAxis(open_vector, approach_vector, normal_vector, 
+                Angle_axis_rotation_open, 
+                Angle_axis_rotation_approach, 
+                Angle_axis_rotation_normal);
+    
+  // cout << "new open_vector \n" <<  open_vector << "\n\n";
+  // cout << "new approach_vector \n" <<  approach_vector << "\n\n";
+  // cout << "new normal_vector \n" <<  normal_vector << "\n\n";
 
   // cout << "grcnn_predict.x: " << grcnn_predict.x <<endl;
 
@@ -485,13 +510,16 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
           }
         }
       }
+
       std_msgs::Int64 num;
       num.data = number_of_point;
       cout << "number_of_point:" << number_of_point << endl;
       pubNumGrabPoint.publish(num);
+      
       pcl::toROSMsg(*grab_cloud, grab_output);
       grab_output.header.frame_id = "depth_camera_link";
       pubGrabPointClouds.publish(grab_output);
+
       break;
     }
   }
@@ -665,6 +693,7 @@ int main (int argc, char** argv)
 
   ros::Subscriber subGrcnnResult = nh.subscribe<pcl_utils::grcnn_result> ("grcnn/result", 1, do_Callback_GrcnnResult);
 
+  ros::Subscriber subAngleAxisRotation = nh.subscribe<pcl_utils::AngleAxis_rotation_msg> ("/grasp_training/AngleAxis_rotation", 1, do_Callback_AngleAxisRotation);
 
   // Create ROS Service for the input point cloud
   ros::ServiceServer saveImage_service = nh.advertiseService("snapshot", do_SaveImage);
