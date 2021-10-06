@@ -4,6 +4,7 @@ import cv2
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
 import rospy
 import numpy as np
+import math
 
 import tensorflow as tf
 from sensor_msgs.msg import PointCloud2
@@ -162,9 +163,10 @@ if __name__ == '__main__':
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
     rotation = AngleAxis_rotation_msg()
-    rotation.rotation_open = 0
-    rotation.rotation_approach = 0
-    rotation.rotation_normal = 0
+    
+    rotation.x = 0
+    rotation.y = 0
+    rotation.z = 0
 
     while not rospy.is_shutdown():
         pub_AngleAxisRotation.publish(rotation)

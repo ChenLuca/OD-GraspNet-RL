@@ -1,3 +1,3 @@
-float32 rotation_open
-float32 rotation_approach
-float32 rotation_normal
+float32 x
+float32 y
+float32 z
