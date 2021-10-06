@@ -428,7 +428,6 @@ AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &appr
   approach_vector.normalize();
   normal_vector.normalize();
 
-
   cout << "open_vector \n" << open_vector << "\n\n";
   cout << "approach_vector \n" << approach_vector << "\n\n";
   cout << "normal_vector \n" << normal_vector << "\n\n\n";
@@ -487,7 +486,7 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   Eigen::Vector3d normal_vector(0, 1, 0);
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
-  float h_1 = 0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
+  float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2;
 
   open_vector(0) = cos(-1*angle);
   open_vector(1) = sin(-1*angle);

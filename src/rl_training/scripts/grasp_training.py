@@ -124,7 +124,7 @@ def grab_pointClouds_callback(ros_point_cloud):
         xyz = np.append(xyz,[[x[0],x[1],x[2]]], axis = 0)
         rgb = np.append(rgb,[[r,g,b]], axis = 0)
 
-    rospy.loginfo('Done grab_pointClouds_callback')
+    # rospy.loginfo('Done grab_pointClouds_callback')
 
 def rgb_callback(image):
     global rgb_image
@@ -149,8 +149,8 @@ def depth_callback(image):
 def number_of_grab_pointClouds_callback(num):
     global number_of_grab_pointClouds
     number_of_grab_pointClouds = num
-    # print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
-    
+    print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
+
 if __name__ == '__main__':
 
     rospy.init_node('Reinforcement_Learning_Trining', anonymous=True)
