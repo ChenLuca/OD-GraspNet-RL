@@ -52,7 +52,7 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint;
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -79,6 +79,13 @@ struct Point_with_Pixel
 {
   cv::Point3f point;
   cv::Point2f pixel; //pixel rounded
+};
+
+struct AxisQuaterniond
+{
+  Eigen::Quaterniond open_q;
+  Eigen::Quaterniond approach_q;
+  Eigen::Quaterniond normal_q;
 };
 //==============================
 
@@ -108,6 +115,7 @@ std::random_device rd;
 std::default_random_engine generator( rd() );
 std::uniform_real_distribution<float> unif(0.0, 1.0);
 //==============================
+
 
 void do_ViewpointTrasform(Eigen::Matrix4d &viewpoint_transform, float *translation, float *rotation)
 {
@@ -409,65 +417,99 @@ void do_VoxelGrid(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
 void do_Callback_AngleAxisRotation(pcl_utils::AngleAxis_rotation_msg AngleAxis_rotation)
 {
   Angle_axis_rotation_open = AngleAxis_rotation.rotation_open;
-  Angle_axis_rotation_approach = AngleAxis_rotation.rotation_approach;
-  Angle_axis_rotation_normal = AngleAxis_rotation.rotation_normal;
+  Angle_axis_rotation_approach = AngleAxis_rotation.rotation_approach + 1.57;
+  Angle_axis_rotation_normal = AngleAxis_rotation.rotation_normal + 1.57;
 }
 
-void do_AngelAxis(Eigen::Vector3f &open_vector, Eigen::Vector3f &approach_vector, Eigen::Vector3f &normal_vector,
+AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &approach_vector, Eigen::Vector3d &normal_vector,
                   float rotation_open, float rotation_approach, float rotation_normal)
 {
   open_vector.normalize();
   approach_vector.normalize();
   normal_vector.normalize();
 
-  Eigen::Matrix3f mat_open, mat_approach, mat_normal, AngleAxis_mat_all;
+  Eigen::Matrix3d mat_open, mat_approach, mat_normal, AngleAxis_mat_all;
 
   cout << "rotation_open \n" << rotation_open <<"\n\n";
   cout << "rotation_approach \n" << rotation_approach <<"\n\n";
   cout << "rotation_normal \n" << rotation_normal <<"\n\n\n";
 
-  mat_open = Eigen::AngleAxisf(rotation_open, open_vector);
-  mat_approach = Eigen::AngleAxisf(rotation_approach, approach_vector);
-  mat_normal = Eigen::AngleAxisf(rotation_normal, normal_vector);
+  cout << "open_vector \n" << open_vector << "\n\n";
+  cout << "approach_vector \n" << approach_vector << "\n\n";
+  cout << "normal_vector \n" << normal_vector << "\n\n";
+
+  mat_open = Eigen::AngleAxisd(rotation_open, open_vector);
+  mat_approach = Eigen::AngleAxisd(rotation_approach, approach_vector);
+  mat_normal = Eigen::AngleAxisd(rotation_normal, normal_vector);
+
   AngleAxis_mat_all = mat_approach * mat_open * mat_normal;
   
-  // cout << "AngleAxis_mat_all \n" << AngleAxis_mat_all << "\n\n";
   open_vector = AngleAxis_mat_all * open_vector;
   approach_vector = AngleAxis_mat_all * approach_vector;
   normal_vector = AngleAxis_mat_all * normal_vector;
+
+  cout << "rotated open_vector \n" << open_vector << "\n\n";
+  cout << "rotated approach_vector \n" << approach_vector << "\n\n";
+  cout << "rotated normal_vector \n" << normal_vector << "\n\n";
+
+  cout << "mat_open " << mat_open << "\n\n";
+  cout << "mat_approach " << mat_approach << "\n\n";
+  cout << "mat_normal " << mat_normal << "\n\n";
+
+  AxisQuaterniond AQ;
+  Eigen::Quaterniond open_q(mat_open);
+  Eigen::Quaterniond approach_q(mat_approach);
+  Eigen::Quaterniond normal_q(mat_normal);
+
+  AQ.open_q = open_q;
+  AQ.approach_q = approach_q;
+  AQ.normal_q = normal_q;
+
+  return AQ;
+
+  // Eigen::Matrix3d R_open, R_approach, R_normal;
+  
+  // R_open = Eigen::AngleAxisd(open_vector[0], ::Eigen::Vector3d::UnitZ())
+  //     * Eigen::AngleAxisd(open_vector[1], ::Eigen::Vector3d::UnitY())
+  //     * Eigen::AngleAxisd(open_vector[2], ::Eigen::Vector3d::UnitX());
+  
+  // R_approach = Eigen::AngleAxisd(approach_vector[0], ::Eigen::Vector3d::UnitZ())
+  //     * Eigen::AngleAxisd(approach_vector[1], ::Eigen::Vector3d::UnitY())
+  //     * Eigen::AngleAxisd(approach_vector[2], ::Eigen::Vector3d::UnitX());
+  
+  // R_normal = Eigen::AngleAxisd(normal_vector[0], ::Eigen::Vector3d::UnitZ())
+  //   * Eigen::AngleAxisd(normal_vector[1], ::Eigen::Vector3d::UnitY())
+  //   * Eigen::AngleAxisd(normal_vector[2], ::Eigen::Vector3d::UnitX());
+
+  // AQ.open_q = R_open;
+  // AQ.approach_q = R_approach;
+  // AQ.normal_q = R_normal;
+
+  // return AQ;
+
 }
 
 void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
                                         pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
 {
-  Eigen::Vector3f open_vector(0, 1, 0);
-  Eigen::Vector3f approach_vector(0, 0, 1);
-  Eigen::Vector3f normal_vector(0, 0, 0);
+  Eigen::Vector3d open_vector(1, 0, 0);
+  Eigen::Vector3d approach_vector(0, 0, 1);
+  Eigen::Vector3d normal_vector(0, 1, 0);
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
   float h_1 = 0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
 
-  open_vector(0) = cos(-1*angle);
-  open_vector(1) = sin(-1*angle);
+  // open_vector(0) = cos(-1*angle);
+  // open_vector(1) = sin(-1*angle);
 
-  normal_vector = approach_vector.cross(open_vector);
+  // normal_vector = approach_vector.cross(open_vector);
 
-  // cout << "open_vector \n" << open_vector <<"\n\n";
-  // cout << "approach_vector \n" << approach_vector <<"\n\n";
-  // cout << "normal_vector \n" << normal_vector <<"\n\n\n";
-  
-  do_AngelAxis(open_vector, approach_vector, normal_vector, 
+  AxisQuaterniond AQ;
+
+  AQ = do_AngelAxis(open_vector, approach_vector, normal_vector, 
                 Angle_axis_rotation_open, 
                 Angle_axis_rotation_approach, 
                 Angle_axis_rotation_normal);
-    
-  // cout << "new open_vector \n" <<  open_vector << "\n\n";
-  // cout << "new approach_vector \n" <<  approach_vector << "\n\n";
-  // cout << "new normal_vector \n" <<  normal_vector << "\n\n";
-
-  // cout << "grcnn_predict.x: " << grcnn_predict.x <<endl;
-
-  // cout << "grcnn_predict.y: " << grcnn_predict.y <<endl;
 
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
@@ -520,6 +562,79 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       grab_output.header.frame_id = "depth_camera_link";
       pubGrabPointClouds.publish(grab_output);
 
+      //=========rviz marker=========
+      visualization_msgs::Marker open_arrow;
+      open_arrow.header.frame_id = "depth_camera_link";
+      open_arrow.header.stamp = ros::Time();
+      open_arrow.ns = "my_namespace";
+      open_arrow.id = 0;
+      open_arrow.type = visualization_msgs::Marker::ARROW;
+      open_arrow.action = visualization_msgs::Marker::ADD;
+      open_arrow.pose.position.x = point_x;
+      open_arrow.pose.position.y = point_y;
+      open_arrow.pose.position.z = point_z;
+      open_arrow.pose.orientation.x = AQ.open_q.x();
+      open_arrow.pose.orientation.y = AQ.open_q.y();
+      open_arrow.pose.orientation.z = AQ.open_q.z();
+      open_arrow.pose.orientation.w = AQ.open_q.w();
+      open_arrow.scale.x = 0.1;
+      open_arrow.scale.y = 0.01;
+      open_arrow.scale.z = 0.01;
+      open_arrow.color.a = 1.0; // Don't forget to set the alpha!
+      open_arrow.color.r = 1.0;
+      open_arrow.color.g = 0.0;
+      open_arrow.color.b = 0.0;
+
+      pubAngleAxisOpen.publish(open_arrow);
+
+      visualization_msgs::Marker approach_arrow;
+      approach_arrow.header.frame_id = "depth_camera_link";
+      approach_arrow.header.stamp = ros::Time();
+      approach_arrow.ns = "my_namespace";
+      approach_arrow.id = 1;
+      approach_arrow.type = visualization_msgs::Marker::ARROW;
+      approach_arrow.action = visualization_msgs::Marker::ADD;
+      approach_arrow.pose.position.x = point_x;
+      approach_arrow.pose.position.y = point_y;
+      approach_arrow.pose.position.z = point_z;
+      approach_arrow.pose.orientation.x = AQ.approach_q.x();
+      approach_arrow.pose.orientation.y = AQ.approach_q.y();
+      approach_arrow.pose.orientation.z = AQ.approach_q.z();
+      approach_arrow.pose.orientation.w = AQ.approach_q.w();
+      approach_arrow.scale.x = 0.1;
+      approach_arrow.scale.y = 0.01;
+      approach_arrow.scale.z = 0.01;
+      approach_arrow.color.a = 1.0; // Don't forget to set the alpha!
+      approach_arrow.color.r = 0.0;
+      approach_arrow.color.g = 1.0;
+      approach_arrow.color.b = 0.0;
+
+      pubAngleAxisApproach.publish(approach_arrow);
+
+      visualization_msgs::Marker normal_arrow;
+      normal_arrow.header.frame_id = "depth_camera_link";
+      normal_arrow.header.stamp = ros::Time();
+      normal_arrow.ns = "my_namespace";
+      normal_arrow.id = 2;
+      normal_arrow.type = visualization_msgs::Marker::ARROW;
+      normal_arrow.action = visualization_msgs::Marker::ADD;
+      normal_arrow.pose.position.x = point_x;
+      normal_arrow.pose.position.y = point_y;
+      normal_arrow.pose.position.z = point_z;
+      normal_arrow.pose.orientation.x = AQ.normal_q.x();
+      normal_arrow.pose.orientation.y = AQ.normal_q.y();
+      normal_arrow.pose.orientation.z = AQ.normal_q.z();
+      normal_arrow.pose.orientation.w = AQ.normal_q.w();
+      normal_arrow.scale.x = 0.1;
+      normal_arrow.scale.y = 0.01;
+      normal_arrow.scale.z = 0.01;
+      normal_arrow.color.a = 1.0; // Don't forget to set the alpha!
+      normal_arrow.color.r = 0.0;
+      normal_arrow.color.g = 0.0;
+      normal_arrow.color.b = 1.0;
+
+      pubAngleAxisNormal.publish(normal_arrow);
+      //=========rviz marker=========
       break;
     }
   }
@@ -595,6 +710,9 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
   
   float grasp_angle = grcnn_input.angle;
+  grasp_angle = 0;
+
+  cout << "grcnn_input.angle " << grasp_angle << "\n";
   cv::Point2f grcnn_predict;
 
   // grcnn_predict.x = grcnn_input.x;
@@ -624,6 +742,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   ros::Time depth_begin = ros::Time::now();
   depth_msg->header.stamp = depth_begin;
   pubProjectDepthImage.publish(depth_msg);
+  
 
   ROS_INFO("Done do_Callback_PointCloud");
 }
@@ -697,6 +816,11 @@ int main (int argc, char** argv)
 
   // Create ROS Service for the input point cloud
   ros::ServiceServer saveImage_service = nh.advertiseService("snapshot", do_SaveImage);
+
+  // marker in rviz
+  pubAngleAxisOpen = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisOpen", 0 );
+  pubAngleAxisApproach = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisApproach", 0 );
+  pubAngleAxisNormal = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisNormal", 0 );
 
   ros::spin();
 }

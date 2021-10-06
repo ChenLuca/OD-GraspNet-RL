@@ -17,14 +17,15 @@ import struct
 from std_msgs.msg import Int64
 from cv_bridge import CvBridge, CvBridgeError
 
-from tf_agents.environments import py_environment
-from tf_agents.environments import tf_environment
+import abc
+from tf_agents.environments import random_py_environment
 from tf_agents.environments import tf_py_environment
-from tf_agents.environments import utils
+from tf_agents.networks import encoding_network
+from tf_agents.networks import network
+from tf_agents.networks import utils
 from tf_agents.specs import array_spec
-from tf_agents.environments import wrappers
-from tf_agents.environments import suite_gym
-from tf_agents.trajectories import time_step as ts
+from tf_agents.utils import common as common_utils
+from tf_agents.utils import nest_utils
 
 rgb_bridge = CvBridge()
 depth_bridge = CvBridge()
@@ -37,47 +38,66 @@ number_of_grab_pointClouds = 0
 xyz = np.array([[0,0,0]])
 rgb = np.array([[0,0,0]])
 
-class GraspEnv(py_environment.PyEnvironment):
-    def __init__(self):
-        self._action_spec = array_spec.BoundedArraySpec(
-            shape=(), dtype=np.int32, minimum=0, maximum=1, name='action')
-        self._observation_spec = array_spec.BoundedArraySpec(
-            shape=(1,), dtype=np.int32, minimum=0, name='observation')
-        self._state = 0
-        self._episode_ended = False
-    
-    def action_spec(self):
-        return self._action_spec
+class ActorNetwork(network.Network):
 
-    def observation_spec(self):
-        return self._observation_spec
+  def __init__(self,
+               observation_spec,
+               action_spec,
+               preprocessing_layers=None,
+               preprocessing_combiner=None,
+               conv_layer_params=None,
+               fc_layer_params=(75, 40),
+               dropout_layer_params=None,
+               activation_fn=tf.keras.activations.relu,
+               enable_last_layer_zero_initializer=False,
+               name='ActorNetwork'):
+    super(ActorNetwork, self).__init__(
+        input_tensor_spec=observation_spec, state_spec=(), name=name)
 
-    def _reset(self):
-        self._state = 0
-        self._episode_ended = False
-        return ts.restart(np.array([self._state], dtype=np.int32))
-    
-    def _step(self, action):
-        if self._episode_ended:
-            # The last action ended the episode. Ignore the current action and start
-            # a new episode.
-            return self.reset()
+    # For simplicity we will only support a single action float output.
+    self._action_spec = action_spec
+    flat_action_spec = tf.nest.flatten(action_spec)
+    if len(flat_action_spec) > 1:
+      raise ValueError('Only a single action is supported by this network')
+    self._single_action_spec = flat_action_spec[0]
+    if self._single_action_spec.dtype not in [tf.float32, tf.float64]:
+      raise ValueError('Only float actions are supported by this network.')
 
-        # Make sure episodes don't go on forever.
-        if action == 1:
-            self._episode_ended = True
-        elif action == 0:
-            new_card = np.random.randint(1, 11)
-            self._state += new_card
-        else:
-            raise ValueError('`action` should be 0 or 1.')
+    kernel_initializer = tf.keras.initializers.VarianceScaling(
+        scale=1. / 3., mode='fan_in', distribution='uniform')
+    self._encoder = encoding_network.EncodingNetwork(
+        observation_spec,
+        preprocessing_layers=preprocessing_layers,
+        preprocessing_combiner=preprocessing_combiner,
+        conv_layer_params=conv_layer_params,
+        fc_layer_params=fc_layer_params,
+        dropout_layer_params=dropout_layer_params,
+        activation_fn=activation_fn,
+        kernel_initializer=kernel_initializer,
+        batch_squash=False)
 
-        if self._episode_ended or self._state >= 21:
-            reward = self._state - 21 if self._state <= 21 else -21
-            return ts.termination(np.array([self._state], dtype=np.int32), reward)
-        else:
-            return ts.transition(
-                np.array([self._state], dtype=np.int32), reward=0.0, discount=1.0)
+    initializer = tf.keras.initializers.RandomUniform(
+        minval=-0.003, maxval=0.003)
+
+    self._action_projection_layer = tf.keras.layers.Dense(
+        flat_action_spec[0].shape.num_elements(),
+        activation=tf.keras.activations.tanh,
+        kernel_initializer=initializer,
+        name='action')
+
+  def call(self, observations, step_type=(), network_state=()):
+    outer_rank = nest_utils.get_outer_rank(observations, self.input_tensor_spec)
+    # We use batch_squash here in case the observations have a time sequence
+    # compoment.
+    batch_squash = utils.BatchSquash(outer_rank)
+    observations = tf.nest.map_structure(batch_squash.flatten, observations)
+
+    state, network_state = self._encoder(
+        observations, step_type=step_type, network_state=network_state)
+    actions = self._action_projection_layer(state)
+    actions = common_utils.scale_to_spec(actions, self._single_action_spec)
+    actions = batch_squash.unflatten(actions)
+    return tf.nest.pack_sequence_as(self._action_spec, [actions]), network_state
 
 def grab_pointClouds_callback(ros_point_cloud):
     global xyz, rgb
@@ -140,11 +160,6 @@ if __name__ == '__main__':
     rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, number_of_grab_pointClouds_callback)
 
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
-
-    environment = GraspEnv()
-    utils.validate_py_environment(environment, episodes=5)
-
-    tf_env = tf_py_environment.TFPyEnvironment(environment)
 
     rotation = AngleAxis_rotation_msg()
     rotation.rotation_open = 0

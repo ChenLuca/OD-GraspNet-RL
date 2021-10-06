@@ -3,7 +3,11 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Global Options1
+        - /Marker1
+        - /Marker2
+        - /Marker3
       Splitter Ratio: 0.5
     Tree Height: 326
   - Class: rviz/Selection
@@ -86,7 +90,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -101,7 +105,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/Axes
       Enabled: true
       Length: 0.5
@@ -131,11 +135,35 @@ Visualization Manager:
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
-      Style: Flat Squares
+      Style: Points
       Topic: /Grab_PointClouds
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /pubAngleAxisApproach
+      Name: Marker
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /pubAngleAxisNormal
+      Name: Marker
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /pubAngleAxisOpen
+      Name: Marker
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -165,25 +193,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 5.799578666687012
+      Distance: 0.9481849074363708
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.10162658989429474
-        Y: -0.3044218122959137
-        Z: 0.0002877392980735749
+        X: 0.01670246198773384
+        Y: -0.024396799504756927
+        Z: 0.49239978194236755
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -1.5697963237762451
+      Pitch: -0.010202081874012947
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.670422077178955
+      Yaw: 5.468432426452637
     Saved: ~
 Window Geometry:
   Displays:
