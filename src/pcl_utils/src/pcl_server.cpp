@@ -417,36 +417,67 @@ void do_VoxelGrid(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
 void do_Callback_AngleAxisRotation(pcl_utils::AngleAxis_rotation_msg AngleAxis_rotation)
 {
   Angle_axis_rotation_open = AngleAxis_rotation.rotation_open;
-  Angle_axis_rotation_approach = AngleAxis_rotation.rotation_approach + 1.57;
-  Angle_axis_rotation_normal = AngleAxis_rotation.rotation_normal + 1.57;
+  Angle_axis_rotation_approach = AngleAxis_rotation.rotation_approach +1.57;
+  Angle_axis_rotation_normal = AngleAxis_rotation.rotation_normal +1.57;
 }
 
 AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &approach_vector, Eigen::Vector3d &normal_vector,
                   float rotation_open, float rotation_approach, float rotation_normal)
 {
+  // ===== test ====
+
+  Eigen::Vector3d x_axis(1, 0, 0);
+  Eigen::Vector3d y_axis(0, 1, 0);
+  Eigen::Vector3d z_axis(0, 0, 1);
+
+  Eigen::Matrix3d mat_x_rotate, mat_y_rotate, mat_z_rotate;
+
+  float x_rotate = 0.0, y_rotate = 0.0, z_rotate = 0.0;
+
+  x_axis.normalize();
+  y_axis.normalize();
+  z_axis.normalize();
+
+  // ===== test ====
+
+  // ===== origin ====
   open_vector.normalize();
   approach_vector.normalize();
   normal_vector.normalize();
 
   Eigen::Matrix3d mat_open, mat_approach, mat_normal, AngleAxis_mat_all;
 
-  cout << "rotation_open \n" << rotation_open <<"\n\n";
-  cout << "rotation_approach \n" << rotation_approach <<"\n\n";
-  cout << "rotation_normal \n" << rotation_normal <<"\n\n\n";
+  // cout << "rotation_open \n" << rotation_open <<"\n\n";
+  // cout << "rotation_approach \n" << rotation_approach <<"\n\n";
+  // cout << "rotation_normal \n" << rotation_normal <<"\n\n\n";
 
   cout << "open_vector \n" << open_vector << "\n\n";
   cout << "approach_vector \n" << approach_vector << "\n\n";
   cout << "normal_vector \n" << normal_vector << "\n\n";
 
-  mat_open = Eigen::AngleAxisd(rotation_open, open_vector);
-  mat_approach = Eigen::AngleAxisd(rotation_approach, approach_vector);
-  mat_normal = Eigen::AngleAxisd(rotation_normal, normal_vector);
+  mat_open = Eigen::AngleAxisd(rotation_open, x_axis);
+  mat_approach = Eigen::AngleAxisd(rotation_approach, y_axis);
+  mat_normal = Eigen::AngleAxisd(rotation_normal, z_axis);
 
-  AngleAxis_mat_all = mat_approach * mat_open * mat_normal;
+  cout << "AngleAxis_mat_all " << AngleAxis_mat_all << "\n\n";
+  AngleAxis_mat_all = mat_normal * mat_approach * mat_open;
   
   open_vector = AngleAxis_mat_all * open_vector;
   approach_vector = AngleAxis_mat_all * approach_vector;
   normal_vector = AngleAxis_mat_all * normal_vector;
+
+  Eigen::Vector3d ea0 = open_vector;
+  Eigen::Matrix3d R_1, R_2, R_3;
+
+  R_1 = Eigen::AngleAxisd(open_vector[0], Eigen::Vector3d::UnitZ())
+        * Eigen::AngleAxisd(open_vector[1], Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(open_vector[2], Eigen::Vector3d::UnitX());
+  R_2 = Eigen::AngleAxisd(approach_vector[0], Eigen::Vector3d::UnitZ())
+        * Eigen::AngleAxisd(approach_vector[1], Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(approach_vector[2], Eigen::Vector3d::UnitX());
+  R_3 = Eigen::AngleAxisd(normal_vector[0], Eigen::Vector3d::UnitZ())
+        * Eigen::AngleAxisd(normal_vector[1], Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(normal_vector[2], Eigen::Vector3d::UnitX());
 
   cout << "rotated open_vector \n" << open_vector << "\n\n";
   cout << "rotated approach_vector \n" << approach_vector << "\n\n";
@@ -457,15 +488,18 @@ AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &appr
   cout << "mat_normal " << mat_normal << "\n\n";
 
   AxisQuaterniond AQ;
-  Eigen::Quaterniond open_q(mat_open);
-  Eigen::Quaterniond approach_q(mat_approach);
-  Eigen::Quaterniond normal_q(mat_normal);
+  Eigen::Quaterniond open_q(R_1);
+  Eigen::Quaterniond approach_q(R_2);
+  Eigen::Quaterniond normal_q(R_3);
 
   AQ.open_q = open_q;
   AQ.approach_q = approach_q;
   AQ.normal_q = normal_q;
 
   return AQ;
+
+    // ===== origin ====
+
 
   // Eigen::Matrix3d R_open, R_approach, R_normal;
   
@@ -499,10 +533,10 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   float d_1 = 0, d_2 = 0, d_3 = 0;
   float h_1 = 0.085/2, h_2 = 0.021/2, h_3 = 0.033/2;
 
-  // open_vector(0) = cos(-1*angle);
-  // open_vector(1) = sin(-1*angle);
+  open_vector(0) = cos(-1*angle);
+  open_vector(1) = sin(-1*angle);
 
-  // normal_vector = approach_vector.cross(open_vector);
+  normal_vector = approach_vector.cross(open_vector);
 
   AxisQuaterniond AQ;
 
