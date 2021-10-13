@@ -166,12 +166,11 @@ if __name__ == '__main__':
     
     rotation_angle = math.pi/4
 
-    rotation.x = 0
+    rotation.x = rotation_angle
 
-    rotation.y = 0
+    rotation.y = rotation_angle
 
-    rotation.z = 0
-
+    rotation.z = rotation_angle
 
     while not rospy.is_shutdown():
         pub_AngleAxisRotation.publish(rotation)

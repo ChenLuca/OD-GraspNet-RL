@@ -35,6 +35,8 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/registration/icp.h>
 #include <pcl/registration/icp_nl.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/filters/project_inliers.h>
 
 #include "pcl_utils/snapshot.h"
 
@@ -52,7 +54,9 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal;
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, 
+               pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal, 
+               pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -61,7 +65,10 @@ image_transport::Publisher pubProject_Grab_RGBImage;
 image_transport::Publisher pubProject_Grab_DepthImage;
 
 //宣告的輸出的點雲的格式
-sensor_msgs::PointCloud2 Filter_output, grab_output;   
+sensor_msgs::PointCloud2 Filter_output, grab_output, 
+                         project_normal_vector_plane_output, 
+                         project_approach_vector_plane_output, 
+                         project_open_vector_plane_output;   
 
 visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow;
 
@@ -80,6 +87,16 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr Rotate_output_cloud(new pcl::PointCloud<p
 //Pointcloud of gripped area
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr grab_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
+//Pointcloud of projected normal vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_normal_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of projected approach vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_approach_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of projected open vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_open_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+
 struct Point_with_Pixel
 {
   cv::Point3f point;
@@ -91,6 +108,13 @@ struct AxisQuaterniond
   Eigen::Quaterniond open_q;
   Eigen::Quaterniond approach_q;
   Eigen::Quaterniond normal_q;
+};
+
+struct oan_vector
+{
+  Eigen::Vector4d open_vector;
+  Eigen::Vector4d approach_vector;
+  Eigen::Vector4d normal_vector;
 };
 //==============================
 
@@ -118,11 +142,10 @@ float Angle_axis_rotation_open = 0.0, Angle_axis_rotation_approach = 0.0, Angle_
 
 //viewpoint transform
 float *viewpoint_translation = new float[3];
-float *viewpoint_Rotation = new float[3];
+float *viewpoint_rotation = new float[3];
 float *grasp_3D = new float[3];
 float *Grab_Cloud_viewpoint_Translation = new float[3];
 float *Grab_Cloud_viewpoint_Rotation = new float[3];
-
 //==============================
 
 ////=========random=========
@@ -268,7 +291,7 @@ void Matrix4dToRodriguesTranslation(Eigen::Matrix4d & matrix, cv::Vec3d & rvec, 
 
 //OpenCV methods for mapping pointcloud data to 2d image
 void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, cv::Mat &Mapping_RGB_Image, 
-                              cv::Mat &Mapping_Depth_Image, float *viewpoint_translation, float *viewpoint_Rotation,
+                              cv::Mat &Mapping_Depth_Image, float *viewpoint_Translation, float *viewpoint_Rotation,
                               std::vector<Point_with_Pixel> &PwPs, float intrinsic_fx, float intrinsic_fy, float intrinsic_cx, float intrinsic_cy)
 {
   //Extrinsics parameters
@@ -308,7 +331,7 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
   // Define a rotation matrix (see https://en.wikipedia.org/wiki/Rotation_matrix)
   Eigen::Matrix4d viewpoint_transform = Eigen::Matrix4d::Identity();
 
-  do_ViewpointTrasform(viewpoint_transform, viewpoint_translation, viewpoint_Rotation);
+  do_ViewpointTrasform(viewpoint_transform, viewpoint_Translation, viewpoint_Rotation);
   
   cam1_H_world = viewpoint_transform;
 
@@ -316,8 +339,6 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
 	std::vector<cv::Point3f> cloudPoints;
 	CloudToVector(input_cloud, cloudPoints);
   
-  // cout << "cloudPoints " << cloudPoints << endl;
-
 	cv::Vec3d cam1_H_world_rvec, cam1_H_world_tvec;
 	Matrix4dToRodriguesTranslation(cam1_H_world, cam1_H_world_rvec, cam1_H_world_tvec);
 
@@ -493,7 +514,7 @@ AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &appr
   return AQ;
 }
 
-void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
+oan_vector do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
                                         pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point)
 {
   Eigen::Vector3d open_vector(1, 0, 0);
@@ -502,6 +523,7 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
   float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2;
+  float thr = 0.0001;
 
   open_vector(0) = cos(-1*angle);
   open_vector(1) = sin(-1*angle);
@@ -514,9 +536,7 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
                     Angle_axis_rotation_open, 
                     Angle_axis_rotation_approach, 
                     Angle_axis_rotation_normal);
-
-  float thr = 0.0001;
-
+  
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
     if (abs(PwPs[i].pixel.x - grcnn_predict.x) < thr & abs(PwPs[i].pixel.y - grcnn_predict.y) < thr)//need to be check for more carefully! Maybe multi points can be projected to the same point!
@@ -607,6 +627,27 @@ void do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       break;
     }
   }
+
+  oan_vector output_oan_vector;
+
+  output_oan_vector.open_vector(0) = open_vector(0);
+  output_oan_vector.open_vector(1) = open_vector(1);
+  output_oan_vector.open_vector(2) = open_vector(2);
+  output_oan_vector.open_vector(3) = d_1;
+
+
+  output_oan_vector.approach_vector(0) = approach_vector(0);
+  output_oan_vector.approach_vector(1) = approach_vector(1);
+  output_oan_vector.approach_vector(2) = approach_vector(2);
+  output_oan_vector.approach_vector(3) = d_2;
+
+
+  output_oan_vector.normal_vector(0) = normal_vector(0);
+  output_oan_vector.normal_vector(1) = normal_vector(1);
+  output_oan_vector.normal_vector(2) = normal_vector(2);
+  output_oan_vector.normal_vector(3) = d_3;
+
+  return output_oan_vector;
 }
 void do_Callback_GrcnnResult(pcl_utils::grcnn_result result)
 {
@@ -616,6 +657,27 @@ void do_Callback_GrcnnResult(pcl_utils::grcnn_result result)
   grcnn_input.length = result.length;
   grcnn_input.width = result.width;
 }
+
+void do_Project_using_parametric_model(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, 
+                                       pcl::PointCloud<pcl::PointXYZRGB>::Ptr &output_cloud,
+                                       float * model_coefficients)
+{
+  // Create a set of planar coefficients
+  pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+  coefficients->values.resize (4);
+  coefficients->values[0] = model_coefficients[0];
+  coefficients->values[1] = model_coefficients[1];
+  coefficients->values[2] = model_coefficients[2];
+  coefficients->values[3] = model_coefficients[3];
+
+  // Create the filtering object
+  pcl::ProjectInliers<pcl::PointXYZRGB> proj;
+  proj.setModelType (pcl::SACMODEL_PLANE);
+  proj.setInputCloud (input_cloud);
+  proj.setModelCoefficients (coefficients);
+  proj.filter (*output_cloud);
+}
+
 
 void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {  
@@ -660,13 +722,13 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   viewpoint_translation[0] = 0.0;
   viewpoint_translation[1] = 0.0;
   viewpoint_translation[2] = 0.0;
-  viewpoint_Rotation[0] = 0.0;
-  viewpoint_Rotation[1] = 0.0;
-  viewpoint_Rotation[2] = 0.0;
+  viewpoint_rotation[0] = 0.0;
+  viewpoint_rotation[1] = 0.0;
+  viewpoint_rotation[2] = 0.0;
 
   std::vector<Point_with_Pixel> PwPs;
 
-  do_PerspectiveProjection(filter_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_Rotation, PwPs, fx, fy, cx, cy);
+  do_PerspectiveProjection(filter_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, PwPs, fx, fy, cx, cy);
 
   //do dilate for sparse image result
   cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
@@ -676,7 +738,6 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   float grasp_angle = grcnn_input.angle;
   grasp_angle = 0;
 
-  // cout << "grcnn_input.angle " << grasp_angle << "\n\n";
   cv::Point2f grcnn_predict;
 
   // grcnn_predict.x = grcnn_input.x;
@@ -684,8 +745,10 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
   grcnn_predict.x = 320;
   grcnn_predict.y = 240;
-
-  do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud, grasp_3D);
+  
+  oan_vector plane_coefficients_vector;
+  
+  plane_coefficients_vector = do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud, grasp_3D);
 
   std::vector<Point_with_Pixel> Grab_Cloud_PwPs;
 
@@ -693,9 +756,13 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
   Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.2;
 
-  Grab_Cloud_viewpoint_Rotation[0] = 0.0;
-  Grab_Cloud_viewpoint_Rotation[1] = 0.0;
-  Grab_Cloud_viewpoint_Rotation[2] = 0.0;
+  // Angle_axis_rotation_open = AngleAxis_rotation.x;
+  // Angle_axis_rotation_normal = AngleAxis_rotation.y;
+  // Angle_axis_rotation_approach =  AngleAxis_rotation.z;
+
+  Grab_Cloud_viewpoint_Rotation[0] = 0;
+  Grab_Cloud_viewpoint_Rotation[1] = 0;
+  Grab_Cloud_viewpoint_Rotation[2] = 0;
   
   Grab_Cloud_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
   Grab_Cloud_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
@@ -708,9 +775,48 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::dilate(Grab_Cloud_RGB_Image, Grab_Cloud_RGB_Image, Grab_element);
   cv::dilate(Grab_Cloud_Depth_Image, Grab_Cloud_Depth_Image, Grab_element);
 
+  // ax + by + cy + d = 0
+  // plane_coefficients = a, b, c, d
+  float *normal_vector_plane_coefficients = new float[4];
+  float *approach_vector_plane_coefficients = new float[4];
+  float *open_vector_plane_coefficients = new float[4];
+
+  normal_vector_plane_coefficients[0] = plane_coefficients_vector.normal_vector(0);
+  normal_vector_plane_coefficients[1] = plane_coefficients_vector.normal_vector(1);
+  normal_vector_plane_coefficients[2] = plane_coefficients_vector.normal_vector(2);
+  normal_vector_plane_coefficients[3] = -1*plane_coefficients_vector.normal_vector(3);
+
+  approach_vector_plane_coefficients[0] = plane_coefficients_vector.approach_vector(0);
+  approach_vector_plane_coefficients[1] = plane_coefficients_vector.approach_vector(1);
+  approach_vector_plane_coefficients[2] = plane_coefficients_vector.approach_vector(2);
+  approach_vector_plane_coefficients[3] = -1*plane_coefficients_vector.approach_vector(3);
+
+  open_vector_plane_coefficients[0] = plane_coefficients_vector.open_vector(0);
+  open_vector_plane_coefficients[1] = plane_coefficients_vector.open_vector(1);
+  open_vector_plane_coefficients[2] = plane_coefficients_vector.open_vector(2);
+  open_vector_plane_coefficients[3] = -1*plane_coefficients_vector.open_vector(3);
+
+  do_Project_using_parametric_model(grab_cloud, project_normal_vector_plane_cloud, normal_vector_plane_coefficients);
+  do_Project_using_parametric_model(grab_cloud, project_approach_vector_plane_cloud, approach_vector_plane_coefficients);
+  do_Project_using_parametric_model(grab_cloud, project_open_vector_plane_cloud, open_vector_plane_coefficients);
+
+  pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
+  project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubProjectNormalVectorPlaneCloud.publish(project_normal_vector_plane_output);
+
+  pcl::toROSMsg(*project_approach_vector_plane_cloud, project_approach_vector_plane_output);
+  project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubProjectApproachVectorPlaneCloud.publish(project_approach_vector_plane_output);
+
+  pcl::toROSMsg(*project_open_vector_plane_cloud, project_open_vector_plane_output);
+  project_open_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubProjectOpenVectorPlaneCloud.publish(project_open_vector_plane_output);
+
   pcl::toROSMsg(*grab_cloud, grab_output);
   grab_output.header.frame_id = "depth_camera_link";
   pubGrabPointClouds.publish(grab_output);
+
+
   
   if(SHOW_CV_WINDOWS)
   {
@@ -726,7 +832,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cv::waitKey(1);
   }
 
-  //====publish image to ros topic
+  //==== publish image to ros topic
   sensor_msgs::ImagePtr rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Mapping_RGB_Image).toImageMsg();
   ros::Time rgb_begin = ros::Time::now();
   rgb_msg->header.stamp = rgb_begin;
@@ -793,8 +899,10 @@ int main (int argc, char** argv)
   // Initialize ROS
   ros::init (argc, argv, "pcl_server");
 
+  // Initialize NodeHandle
   ros::NodeHandle nh;
 
+  // Creat marker for rviz
   open_arrow.header.frame_id = "depth_camera_link";
   open_arrow.ns = "my_namespace";
   open_arrow.id = 0;
@@ -831,6 +939,11 @@ int main (int argc, char** argv)
   approach_arrow.color.g = 0.0;
   approach_arrow.color.b = 1.0;
 
+  // Create ROS publisher for marker in rviz
+  pubAngleAxisOpen = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisOpen", 0);
+  pubAngleAxisApproach = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisApproach", 0);
+  pubAngleAxisNormal = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisNormal", 0);
+
   // Create ROS publisher for projected image
   image_transport::ImageTransport it(nh);
   pubProjectRGBImage = it.advertise("/projected_image/rgb", 1);
@@ -838,29 +951,35 @@ int main (int argc, char** argv)
   pubProject_Grab_RGBImage = it.advertise("/projected_image/grab_rgb", 1);
   pubProject_Grab_DepthImage = it.advertise("/projected_image/grab_depth", 1);
 
-  // Create ROS preccess pointcloud publisher for the rotate point cloud
+  // Create ROS pointcloud publisher for the rotate point cloud
   pubRotatePointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Rotate_PointClouds", 30);
 
-  // Create ROS preccess pointcloud publisher for the point cloud of gripped area
+  // Create ROS pointcloud publisher for the point cloud of gripped area
   pubGrabPointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds", 30);
   
+  // Create ROS pointcloud publisher for the number of grab point
   pubNumGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Grab_PointClouds", 30);
 
-  // Create ROS subscriber for the input point cloud
-  //azure kinect dk
+  // Create ROS pointcloud publisher for projected normal vector plane cloud
+  pubProjectNormalVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
+
+  // Create ROS pointcloud publisher for projected approach vector plane cloud
+  pubProjectApproachVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Approach_Vector_PlaneClouds", 30);
+
+  // Create ROS pointcloud publisher for projected open vector plane cloud
+  pubProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Open_Vector_PlaneClouds", 30);
+
+  // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
 
-  ros::Subscriber subGrcnnResult = nh.subscribe<pcl_utils::grcnn_result> ("grcnn/result", 1, do_Callback_GrcnnResult);
+  // Create ROS subscriber for the result of grcnn (2D grasp point)
+  ros::Subscriber subGrcnnResult = nh.subscribe<pcl_utils::grcnn_result> ("/grcnn/result", 1, do_Callback_GrcnnResult);
 
+  // Create ROS subscriber for the AngleAxis_rotation (open, normal & approach)
   ros::Subscriber subAngleAxisRotation = nh.subscribe<pcl_utils::AngleAxis_rotation_msg> ("/grasp_training/AngleAxis_rotation", 1, do_Callback_AngleAxisRotation);
 
-  // Create ROS Service for the input point cloud
-  ros::ServiceServer saveImage_service = nh.advertiseService("snapshot", do_SaveImage);
-
-  // marker in rviz
-  pubAngleAxisOpen = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisOpen", 0 );
-  pubAngleAxisApproach = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisApproach", 0 );
-  pubAngleAxisNormal = nh.advertise<visualization_msgs::Marker>( "pubAngleAxisNormal", 0 );
+  // Create ROS Service for taking picture
+  ros::ServiceServer saveImage_service = nh.advertiseService("/snapshot", do_SaveImage);
 
   ros::spin();
 }
