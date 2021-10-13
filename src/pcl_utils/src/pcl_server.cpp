@@ -56,7 +56,8 @@ using namespace std;
 //pointcloud publish
 ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, 
                pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal, 
-               pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud;
+               pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud,
+               pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -68,7 +69,11 @@ image_transport::Publisher pubProject_Grab_DepthImage;
 sensor_msgs::PointCloud2 Filter_output, grab_output, 
                          project_normal_vector_plane_output, 
                          project_approach_vector_plane_output, 
-                         project_open_vector_plane_output;   
+                         project_open_vector_plane_output,
+                         retransform_project_normal_vector_plane_output, 
+                         retransform_project_approach_vector_plane_output, 
+                         retransform_project_open_vector_plane_output;
+
 
 visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow;
 
@@ -95,6 +100,15 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_approach_vector_plane_cloud(new p
 
 //Pointcloud of projected open vector plane cloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_open_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of retransform projected normal vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_normal_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of retransform projected approach vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_approach_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of retransform projected open vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_open_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 
 struct Point_with_Pixel
@@ -828,22 +842,22 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   grasp_point(2) = grasp_3D[2];
 
   //rotate point Cloud
-  do_Rotate(project_open_vector_plane_cloud, 
-            Rotate_output_cloud, 
+  do_Rotate(project_normal_vector_plane_cloud, 
+            retransform_normal_vector_plane_cloud, 
             grasp_point, 
             Rotate_angle);
 
-  // PCL to ROS, 第一個引數是輸入，後面的是輸出
-  pcl::toROSMsg(*Rotate_output_cloud, Filter_output);
+  //rotate point Cloud
+  do_Rotate(project_approach_vector_plane_cloud, 
+            retransform_approach_vector_plane_cloud, 
+            grasp_point, 
+            Rotate_angle);
 
-  //Specify the frame that you want to publish
-  Filter_output.header.frame_id = "depth_camera_link";
-
-  //釋出命令
-  pubRotatePointClouds.publish (Filter_output);
-
-
-
+  //rotate point Cloud
+  do_Rotate(project_open_vector_plane_cloud, 
+            retransform_open_vector_plane_cloud, 
+            grasp_point, 
+            Rotate_angle);
 
   //=== publish plane pointcloud and grab pointcloud === [begin]
   pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
@@ -857,6 +871,19 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   pcl::toROSMsg(*project_open_vector_plane_cloud, project_open_vector_plane_output);
   project_open_vector_plane_output.header.frame_id = "depth_camera_link";
   pubProjectOpenVectorPlaneCloud.publish(project_open_vector_plane_output);
+
+
+  pcl::toROSMsg(*retransform_normal_vector_plane_cloud, retransform_project_normal_vector_plane_output);
+  retransform_project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubRetransformProjectNormalVectorPlaneCloud.publish(retransform_project_normal_vector_plane_output);
+
+  pcl::toROSMsg(*retransform_approach_vector_plane_cloud, retransform_project_approach_vector_plane_output);
+  retransform_project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubRetransformProjectApproachVectorPlaneCloud.publish(retransform_project_approach_vector_plane_output);
+
+  pcl::toROSMsg(*retransform_open_vector_plane_cloud, retransform_project_open_vector_plane_output);
+  retransform_project_open_vector_plane_output.header.frame_id = "depth_camera_link";
+  pubRetransformProjectOpenVectorPlaneCloud.publish(retransform_project_open_vector_plane_output);
 
   pcl::toROSMsg(*grab_cloud, grab_output);
   grab_output.header.frame_id = "depth_camera_link";
@@ -1009,13 +1036,27 @@ int main (int argc, char** argv)
   pubNumGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Grab_PointClouds", 30);
 
   // Create ROS pointcloud publisher for projected normal vector plane cloud
-  pubProjectNormalVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
+  pubProjectNormalVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
 
   // Create ROS pointcloud publisher for projected approach vector plane cloud
-  pubProjectApproachVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Approach_Vector_PlaneClouds", 30);
+  pubProjectApproachVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Approach_Vector_PlaneClouds", 30);
 
   // Create ROS pointcloud publisher for projected open vector plane cloud
-  pubProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Project_Open_Vector_PlaneClouds", 30);
+  pubProjectOpenVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Open_Vector_PlaneClouds", 30);
+
+
+
+
+  // Create ROS pointcloud publisher for retransform projected normal vector plane cloud
+  pubRetransformProjectNormalVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Normal_Vector_PlaneClouds", 30);
+
+  // Create ROS pointcloud publisher for retransform projected approach vector plane cloud
+  pubRetransformProjectApproachVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Approach_Vector_PlaneClouds", 30);
+
+  // Create ROS pointcloud publisher for retransform projected open vector plane cloud
+  pubRetransformProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Open_Vector_PlaneClouds", 30);
+
+
 
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
