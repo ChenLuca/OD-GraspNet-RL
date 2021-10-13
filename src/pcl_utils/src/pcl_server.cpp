@@ -81,7 +81,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZR
 //Filter Pointcloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
 
-//Rotate Pointcloud
+//Rotated Pointcloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr Rotate_output_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 //Pointcloud of gripped area
@@ -119,14 +119,19 @@ struct oan_vector
 //==============================
 
 ////=========global paremeters=========
+
+bool SHOW_CV_WINDOWS = false;
+bool ROTATE_POINTCLOUD =false;
+
+//Snapshot service
+int take_picture_counter = 0;
+
 //Project image size, maybe too large or small
 int Mapping_width = 640, Mapping_high = 480;
 cv::Mat Mapping_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
 cv::Mat Mapping_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
-
 cv::Mat Grab_Cloud_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
 cv::Mat Grab_Cloud_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
-int take_picture_counter = 0;
 
 //Intrinsics parameters
 cv::Mat intrinsic_parameters(cv::Size(3, 3), cv::DataType<float>::type); 
@@ -135,10 +140,11 @@ cv::Mat distortion_coefficient(cv::Size(5, 1), cv::DataType<float>::type);
 //Intrinsics parameters from depth camera
 double cx = 325.506, cy = 332.234, fx = 503.566, fy = 503.628;
 
-bool SHOW_CV_WINDOWS = false;
-bool ROTATE_POINTCLOUD =false;
-pcl_utils::grcnn_result grcnn_input;
+//Grab pointcloud Rotation
 float Angle_axis_rotation_open = 0.0, Angle_axis_rotation_approach = 0.0, Angle_axis_rotation_normal = 0.0;
+
+//GRCNN input
+pcl_utils::grcnn_result grcnn_input;
 
 //viewpoint transform
 float *viewpoint_translation = new float[3];
@@ -408,7 +414,6 @@ void do_Rotate(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
                Eigen::Vector4f pca_location,
                float *Rotate_angle)
 {
-  
   Eigen::Affine3f transform_trans = Eigen::Affine3f::Identity();
   Eigen::Affine3f transform_rotate = Eigen::Affine3f::Identity();
 
@@ -416,16 +421,17 @@ void do_Rotate(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
   transform_trans.translation() << -1*pca_location[0], -1*pca_location[1], -1*pca_location[2];
 
   // The same rotation matrix as before; theta radians around Z axis
-  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[2], Eigen::Vector3f::UnitZ()));
-  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[1], Eigen::Vector3f::UnitY()));
   transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[0], Eigen::Vector3f::UnitX()));
+  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[1], Eigen::Vector3f::UnitY()));
+  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[2], Eigen::Vector3f::UnitZ()));
 
   // Apply an affine transform defined by an Eigen Transform.
   pcl::transformPointCloud (*input_cloud, *output_cloud, transform_trans);
   pcl::transformPointCloud (*output_cloud, *output_cloud, transform_rotate);
-  transform_trans.translation() << pca_location[0], pca_location[1], pca_location[2];
-  pcl::transformPointCloud (*output_cloud, *output_cloud, transform_trans);
 
+  transform_trans.translation() << pca_location[0], pca_location[1], pca_location[2];
+
+  pcl::transformPointCloud (*output_cloud, *output_cloud, transform_trans);
 }
 
 void do_Passthrough(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, 
@@ -712,6 +718,8 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     pubRotatePointClouds.publish (Filter_output);
   }
 
+
+  //=== Get projected rgb & depth image form pointcloud === [begin]
   //reset values in the images
   Mapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
   Mapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
@@ -734,7 +742,11 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
+  //=== Get projected rgb & depth image form pointcloud === [end]
+
+
   
+  //=== Get grab pointclout & count it's number === [begin]
   float grasp_angle = grcnn_input.angle;
   grasp_angle = 0;
 
@@ -745,20 +757,17 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
   grcnn_predict.x = 320;
   grcnn_predict.y = 240;
-  
   oan_vector plane_coefficients_vector;
-  
   plane_coefficients_vector = do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, filter_cloud, grasp_3D);
+  //===  Get grab pointclout & count it's number === [end]
 
+
+  //=== Project plane Image === [begin]
   std::vector<Point_with_Pixel> Grab_Cloud_PwPs;
 
   Grab_Cloud_viewpoint_Translation[0] = -grasp_3D[0];
   Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
   Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.2;
-
-  // Angle_axis_rotation_open = AngleAxis_rotation.x;
-  // Angle_axis_rotation_normal = AngleAxis_rotation.y;
-  // Angle_axis_rotation_approach =  AngleAxis_rotation.z;
 
   Grab_Cloud_viewpoint_Rotation[0] = 0;
   Grab_Cloud_viewpoint_Rotation[1] = 0;
@@ -774,7 +783,10 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(10, 10));  
   cv::dilate(Grab_Cloud_RGB_Image, Grab_Cloud_RGB_Image, Grab_element);
   cv::dilate(Grab_Cloud_Depth_Image, Grab_Cloud_Depth_Image, Grab_element);
+  //=== Project Image === [end]
 
+
+  //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
   // ax + by + cy + d = 0
   // plane_coefficients = a, b, c, d
   float *normal_vector_plane_coefficients = new float[4];
@@ -799,7 +811,41 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   do_Project_using_parametric_model(grab_cloud, project_normal_vector_plane_cloud, normal_vector_plane_coefficients);
   do_Project_using_parametric_model(grab_cloud, project_approach_vector_plane_cloud, approach_vector_plane_coefficients);
   do_Project_using_parametric_model(grab_cloud, project_open_vector_plane_cloud, open_vector_plane_coefficients);
+  //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
 
+
+
+  float *Rotate_angle = new float[3];
+
+  Rotate_angle[0] = -1 * Angle_axis_rotation_open;  //X axis
+  Rotate_angle[1] = -1 * Angle_axis_rotation_normal;  //Y axis
+  Rotate_angle[2] = -1 * Angle_axis_rotation_approach;  //Z axis
+
+  Eigen::Vector4f grasp_point;
+
+  grasp_point(0) = grasp_3D[0];
+  grasp_point(1) = grasp_3D[1];
+  grasp_point(2) = grasp_3D[2];
+
+  //rotate point Cloud
+  do_Rotate(project_open_vector_plane_cloud, 
+            Rotate_output_cloud, 
+            grasp_point, 
+            Rotate_angle);
+
+  // PCL to ROS, 第一個引數是輸入，後面的是輸出
+  pcl::toROSMsg(*Rotate_output_cloud, Filter_output);
+
+  //Specify the frame that you want to publish
+  Filter_output.header.frame_id = "depth_camera_link";
+
+  //釋出命令
+  pubRotatePointClouds.publish (Filter_output);
+
+
+
+
+  //=== publish plane pointcloud and grab pointcloud === [begin]
   pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
   project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
   pubProjectNormalVectorPlaneCloud.publish(project_normal_vector_plane_output);
@@ -815,7 +861,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   pcl::toROSMsg(*grab_cloud, grab_output);
   grab_output.header.frame_id = "depth_camera_link";
   pubGrabPointClouds.publish(grab_output);
-
+  //=== publish plane pointcloud and grab pointcloud === [end]
 
   
   if(SHOW_CV_WINDOWS)
@@ -832,7 +878,8 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cv::waitKey(1);
   }
 
-  //==== publish image to ros topic
+
+  //=== publish mapping image === [begin]
   sensor_msgs::ImagePtr rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Mapping_RGB_Image).toImageMsg();
   ros::Time rgb_begin = ros::Time::now();
   rgb_msg->header.stamp = rgb_begin;
@@ -852,6 +899,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   ros::Time grab_depth_begin = ros::Time::now();
   grab_depth_msg->header.stamp = grab_depth_begin;
   pubProject_Grab_DepthImage.publish(grab_depth_msg);
+  //=== publish image === [end]
 
   ROS_INFO("Done do_Callback_PointCloud");
 }
