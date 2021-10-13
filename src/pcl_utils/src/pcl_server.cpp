@@ -62,8 +62,12 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint,
 //image publish
 image_transport::Publisher pubProjectDepthImage;
 image_transport::Publisher pubProjectRGBImage;
-image_transport::Publisher pubProject_Grab_RGBImage;
-image_transport::Publisher pubProject_Grab_DepthImage;
+image_transport::Publisher pubProject_Grab_Approach_RGB_Image;
+image_transport::Publisher pubProject_Grab_Approach_Depth_Image;
+image_transport::Publisher pubProject_Grab_Normal_RGB_Image;
+image_transport::Publisher pubProject_Grab_Normal_Depth_Image;
+image_transport::Publisher pubProject_Grab_Open_RGB_Image;
+image_transport::Publisher pubProject_Grab_Open_Depth_Image;
 
 //宣告的輸出的點雲的格式
 sensor_msgs::PointCloud2 Filter_output, grab_output, 
@@ -144,8 +148,13 @@ int take_picture_counter = 0;
 int Mapping_width = 640, Mapping_high = 480;
 cv::Mat Mapping_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
 cv::Mat Mapping_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
-cv::Mat Grab_Cloud_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
-cv::Mat Grab_Cloud_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
+cv::Mat Grab_Cloud_Approach_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+cv::Mat Grab_Cloud_Approach_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+cv::Mat Grab_Cloud_Normal_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+cv::Mat Grab_Cloud_Normal_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+cv::Mat Grab_Cloud_Open_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+cv::Mat Grab_Cloud_Open_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
 
 //Intrinsics parameters
 cv::Mat intrinsic_parameters(cv::Size(3, 3), cv::DataType<float>::type); 
@@ -776,30 +785,6 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   //===  Get grab pointclout & count it's number === [end]
 
 
-  //=== Project plane Image === [begin]
-  std::vector<Point_with_Pixel> Grab_Cloud_PwPs;
-
-  Grab_Cloud_viewpoint_Translation[0] = -grasp_3D[0];
-  Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
-  Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.2;
-
-  Grab_Cloud_viewpoint_Rotation[0] = 0;
-  Grab_Cloud_viewpoint_Rotation[1] = 0;
-  Grab_Cloud_viewpoint_Rotation[2] = 0;
-  
-  Grab_Cloud_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
-  Grab_Cloud_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
-
-  do_PerspectiveProjection(grab_cloud, Grab_Cloud_RGB_Image, Grab_Cloud_Depth_Image, 
-                            Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_PwPs,
-                            320, 240, 300, 300);
-
-  cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(10, 10));  
-  cv::dilate(Grab_Cloud_RGB_Image, Grab_Cloud_RGB_Image, Grab_element);
-  cv::dilate(Grab_Cloud_Depth_Image, Grab_Cloud_Depth_Image, Grab_element);
-  //=== Project Image === [end]
-
-
   //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
   // ax + by + cy + d = 0
   // plane_coefficients = a, b, c, d
@@ -890,6 +875,48 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   pubGrabPointClouds.publish(grab_output);
   //=== publish plane pointcloud and grab pointcloud === [end]
 
+  //=== Project plane Image === [begin]
+  std::vector<Point_with_Pixel> Grab_Cloud_Approach_PwPs, Grab_Cloud_Normal_PwPs, Grab_Cloud_Open_PwPs;
+
+  Grab_Cloud_viewpoint_Translation[0] = -grasp_3D[0];
+  Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
+  Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.1;
+
+  Grab_Cloud_viewpoint_Rotation[0] = 0;
+  Grab_Cloud_viewpoint_Rotation[1] = 0;
+  Grab_Cloud_viewpoint_Rotation[2] = 0;
+  
+  Grab_Cloud_Approach_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  Grab_Cloud_Approach_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+  Grab_Cloud_Normal_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  Grab_Cloud_Normal_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+  Grab_Cloud_Open_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  Grab_Cloud_Open_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
+  do_PerspectiveProjection(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
+                            Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Approach_PwPs,
+                            320, 240, 300, 300);
+  
+  do_PerspectiveProjection(retransform_open_vector_plane_cloud, Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_Depth_Image, 
+                          Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Open_PwPs,
+                          320, 240, 300, 300);
+
+  do_PerspectiveProjection(retransform_normal_vector_plane_cloud, Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_Depth_Image, 
+                          Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Normal_PwPs,
+                          320, 240, 300, 300);
+
+  cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(10, 10));  
+  
+  cv::dilate(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, Grab_element);
+  cv::dilate(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, Grab_element); // <===應該是平的！！！
+
+  cv::dilate(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, Grab_element);
+  cv::dilate(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, Grab_element); // <===應該是平的！！！
+
+  cv::dilate(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, Grab_element);
+  cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); // <===應該是平的！！！
+  //=== Project Image === [end]
+
   
   if(SHOW_CV_WINDOWS)
   {
@@ -899,9 +926,9 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cv::imshow("RGB Image window", Mapping_RGB_Image);
 
     cv::namedWindow("Grab_Cloud_Depth_Image window", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Grab_Cloud_Depth_Image window", Grab_Cloud_Depth_Image);
+    cv::imshow("Grab_Cloud_Depth_Image window", Grab_Cloud_Approach_Depth_Image);
     cv::namedWindow("Grab_Cloud_RGB_Image window", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Grab_Cloud_RGB_Image window", Grab_Cloud_RGB_Image);
+    cv::imshow("Grab_Cloud_RGB_Image window", Grab_Cloud_Approach_RGB_Image);
     cv::waitKey(1);
   }
 
@@ -917,15 +944,42 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   depth_msg->header.stamp = depth_begin;
   pubProjectDepthImage.publish(depth_msg);
 
-  sensor_msgs::ImagePtr grab_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_RGB_Image).toImageMsg();
-  ros::Time grab_rgb_begin = ros::Time::now();
-  grab_rgb_msg->header.stamp = grab_rgb_begin;
-  pubProject_Grab_RGBImage.publish(grab_rgb_msg);
+  sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
+  ros::Time grab_approach_rgb_begin = ros::Time::now();
+  grab_approach_rgb_msg->header.stamp = grab_approach_rgb_begin;
+  pubProject_Grab_Approach_RGB_Image.publish(grab_approach_rgb_msg);
 
-  sensor_msgs::ImagePtr grab_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Depth_Image).toImageMsg();
-  ros::Time grab_depth_begin = ros::Time::now();
-  grab_depth_msg->header.stamp = grab_depth_begin;
-  pubProject_Grab_DepthImage.publish(grab_depth_msg);
+  sensor_msgs::ImagePtr grab_approach_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Approach_Depth_Image).toImageMsg();
+  ros::Time grab_approach_depth_begin = ros::Time::now();
+  grab_approach_depth_msg->header.stamp = grab_approach_depth_begin;
+  pubProject_Grab_Approach_Depth_Image.publish(grab_approach_depth_msg);
+
+
+
+
+
+  sensor_msgs::ImagePtr grab_open_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Open_RGB_Image).toImageMsg();
+  ros::Time grab_open_rgb_begin = ros::Time::now();
+  grab_open_rgb_msg->header.stamp = grab_open_rgb_begin;
+  pubProject_Grab_Open_RGB_Image.publish(grab_open_rgb_msg);
+
+  sensor_msgs::ImagePtr grab_open_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Open_Depth_Image).toImageMsg();
+  ros::Time grab_open_depth_begin = ros::Time::now();
+  grab_open_depth_msg->header.stamp = grab_approach_depth_begin;
+  pubProject_Grab_Open_Depth_Image.publish(grab_open_depth_msg);
+
+  sensor_msgs::ImagePtr grab_normal_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Normal_RGB_Image).toImageMsg();
+  ros::Time grab_normal_rgb_begin = ros::Time::now();
+  grab_normal_rgb_msg->header.stamp = grab_normal_rgb_begin;
+  pubProject_Grab_Normal_RGB_Image.publish(grab_normal_rgb_msg);
+
+  sensor_msgs::ImagePtr grab_normal_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Normal_Depth_Image).toImageMsg();
+  ros::Time grab_normal_depth_begin = ros::Time::now();
+  grab_normal_depth_msg->header.stamp = grab_normal_depth_begin;
+  pubProject_Grab_Normal_Depth_Image.publish(grab_normal_depth_msg);
+
+
+
   //=== publish image === [end]
 
   ROS_INFO("Done do_Callback_PointCloud");
@@ -1023,8 +1077,12 @@ int main (int argc, char** argv)
   image_transport::ImageTransport it(nh);
   pubProjectRGBImage = it.advertise("/projected_image/rgb", 1);
   pubProjectDepthImage = it.advertise("/projected_image/depth", 1);
-  pubProject_Grab_RGBImage = it.advertise("/projected_image/grab_rgb", 1);
-  pubProject_Grab_DepthImage = it.advertise("/projected_image/grab_depth", 1);
+  pubProject_Grab_Approach_RGB_Image = it.advertise("/projected_image/grab_approach_rgb", 1);
+  pubProject_Grab_Approach_Depth_Image = it.advertise("/projected_image/grab_approach_depth", 1);
+  pubProject_Grab_Normal_RGB_Image = it.advertise("/projected_image/grab_normal_rgb", 1);
+  pubProject_Grab_Normal_Depth_Image = it.advertise("/projected_image/grab_normal_depth", 1);
+  pubProject_Grab_Open_RGB_Image = it.advertise("/projected_image/grab_open_rgb", 1);
+  pubProject_Grab_Open_Depth_Image = it.advertise("/projected_image/grab_open_depth", 1);
 
   // Create ROS pointcloud publisher for the rotate point cloud
   pubRotatePointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Rotate_PointClouds", 30);
