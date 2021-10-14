@@ -893,6 +893,30 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   Grab_Cloud_Open_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
   Grab_Cloud_Open_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
 
+  float *Rotate_Normal_Angle = new float[3];
+  float *Rotate_Open_Angle = new float[3];
+
+
+  Rotate_Normal_Angle[0] = M_PI/2;  //X axis
+  Rotate_Normal_Angle[1] = 0;  //Y axis
+  Rotate_Normal_Angle[2] = 0;  //Z axis
+
+  Rotate_Open_Angle[0] = M_PI/2;  //X axis
+  Rotate_Open_Angle[1] = 0;  //Y axis
+  Rotate_Open_Angle[2] = M_PI/2;  //Z axis
+
+    //rotate point Cloud
+  do_Rotate(retransform_normal_vector_plane_cloud, 
+            retransform_normal_vector_plane_cloud, 
+            grasp_point, 
+            Rotate_Normal_Angle);
+
+  //rotate point Cloud
+  do_Rotate(retransform_open_vector_plane_cloud, 
+            retransform_open_vector_plane_cloud, 
+            grasp_point, 
+            Rotate_Open_Angle);
+
   do_PerspectiveProjection(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
                             Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Approach_PwPs,
                             320, 240, 300, 300);
