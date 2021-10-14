@@ -552,7 +552,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
   float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2;
-  float thr = 0.001;
+  float thr = 2;
 
   open_vector(0) = cos(-1*angle);
   open_vector(1) = sin(-1*angle);
@@ -765,10 +765,18 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
   cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
   cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
+
+  sensor_msgs::ImagePtr rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Mapping_RGB_Image).toImageMsg();
+  ros::Time rgb_begin = ros::Time::now();
+  rgb_msg->header.stamp = rgb_begin;
+  pubProjectRGBImage.publish(rgb_msg);
+
+  sensor_msgs::ImagePtr depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Mapping_Depth_Image).toImageMsg();
+  ros::Time depth_begin = ros::Time::now();
+  depth_msg->header.stamp = depth_begin;
+  pubProjectDepthImage.publish(depth_msg);
   //=== Get projected rgb & depth image form pointcloud === [end]
 
-
-  
   //=== Get grab pointclout & count it's number === [begin]
   float grasp_angle = grcnn_input.angle;
   grasp_angle = 0;
@@ -953,16 +961,6 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
 
     //=== publish mapping image === [begin]
-    sensor_msgs::ImagePtr rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Mapping_RGB_Image).toImageMsg();
-    ros::Time rgb_begin = ros::Time::now();
-    rgb_msg->header.stamp = rgb_begin;
-    pubProjectRGBImage.publish(rgb_msg);
-
-    sensor_msgs::ImagePtr depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Mapping_Depth_Image).toImageMsg();
-    ros::Time depth_begin = ros::Time::now();
-    depth_msg->header.stamp = depth_begin;
-    pubProjectDepthImage.publish(depth_msg);
-
     sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
     ros::Time grab_approach_rgb_begin = ros::Time::now();
     grab_approach_rgb_msg->header.stamp = grab_approach_rgb_begin;
