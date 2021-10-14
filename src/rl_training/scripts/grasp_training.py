@@ -10,6 +10,7 @@ import tensorflow as tf
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 from rl_training.msg import AngleAxis_rotation_msg
+import time
 
 import sensor_msgs.point_cloud2 as pc2
 import ctypes
@@ -163,14 +164,13 @@ if __name__ == '__main__':
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
     rotation = AngleAxis_rotation_msg()
-    
-    rotation_angle = math.pi/4
-
-    rotation.x = 0
-
-    rotation.y = 0
-
-    rotation.z = 0
+    rotation_angle = math.pi/2
+    interval = 100
 
     while not rospy.is_shutdown():
-        pub_AngleAxisRotation.publish(rotation)
+        for i in range(interval):
+            rotation.x = 0
+            rotation.y = 0
+            rotation.z = 1*rotation_angle/interval*i
+            pub_AngleAxisRotation.publish(rotation)
+            time.sleep(0.1)
