@@ -32,6 +32,10 @@ from tf_agents.utils import nest_utils
 rgb_bridge = CvBridge()
 depth_bridge = CvBridge()
 
+grab_normal_rgb_bridge = CvBridge()
+grab_approach_rgb_bridge = CvBridge()
+grab_open_rgb_bridge = CvBridge()
+
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
 
@@ -43,67 +47,6 @@ number_of_grab_pointClouds = 0
 
 xyz = np.array([[0,0,0]])
 rgb = np.array([[0,0,0]])
-
-class ActorNetwork(network.Network):
-
-  def __init__(self,
-               observation_spec,
-               action_spec,
-               preprocessing_layers=None,
-               preprocessing_combiner=None,
-               conv_layer_params=None,
-               fc_layer_params=(75, 40),
-               dropout_layer_params=None,
-               activation_fn=tf.keras.activations.relu,
-               enable_last_layer_zero_initializer=False,
-               name='ActorNetwork'):
-    super(ActorNetwork, self).__init__(
-        input_tensor_spec=observation_spec, state_spec=(), name=name)
-
-    # For simplicity we will only support a single action float output.
-    self._action_spec = action_spec
-    flat_action_spec = tf.nest.flatten(action_spec)
-    if len(flat_action_spec) > 1:
-      raise ValueError('Only a single action is supported by this network')
-    self._single_action_spec = flat_action_spec[0]
-    if self._single_action_spec.dtype not in [tf.float32, tf.float64]:
-      raise ValueError('Only float actions are supported by this network.')
-
-    kernel_initializer = tf.keras.initializers.VarianceScaling(
-        scale=1. / 3., mode='fan_in', distribution='uniform')
-    self._encoder = encoding_network.EncodingNetwork(
-        observation_spec,
-        preprocessing_layers=preprocessing_layers,
-        preprocessing_combiner=preprocessing_combiner,
-        conv_layer_params=conv_layer_params,
-        fc_layer_params=fc_layer_params,
-        dropout_layer_params=dropout_layer_params,
-        activation_fn=activation_fn,
-        kernel_initializer=kernel_initializer,
-        batch_squash=False)
-
-    initializer = tf.keras.initializers.RandomUniform(
-        minval=-0.003, maxval=0.003)
-
-    self._action_projection_layer = tf.keras.layers.Dense(
-        flat_action_spec[0].shape.num_elements(),
-        activation=tf.keras.activations.tanh,
-        kernel_initializer=initializer,
-        name='action')
-
-  def call(self, observations, step_type=(), network_state=()):
-    outer_rank = nest_utils.get_outer_rank(observations, self.input_tensor_spec)
-    # We use batch_squash here in case the observations have a time sequence
-    # compoment.
-    batch_squash = utils.BatchSquash(outer_rank)
-    observations = tf.nest.map_structure(batch_squash.flatten, observations)
-
-    state, network_state = self._encoder(
-        observations, step_type=step_type, network_state=network_state)
-    actions = self._action_projection_layer(state)
-    actions = common_utils.scale_to_spec(actions, self._single_action_spec)
-    actions = batch_squash.unflatten(actions)
-    return tf.nest.pack_sequence_as(self._action_spec, [actions]), network_state
 
 def grab_pointClouds_callback(ros_point_cloud):
     global xyz, rgb
@@ -159,7 +102,7 @@ def number_of_grab_pointClouds_callback(num):
 def grab_normal_rgb_callback(image):
     global grab_normal_rgb_image
     try:
-        grab_normal_rgb_image = rgb_bridge.imgmsg_to_cv2(image, "bgr8")
+        grab_normal_rgb_image = grab_normal_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
         # cv2.namedWindow('grab_normal_rgb_image', cv2.WINDOW_NORMAL)
         # cv2.imshow('grab_normal_rgb_image', grab_normal_rgb_image)
         # cv2.waitKey(1)
@@ -169,7 +112,7 @@ def grab_normal_rgb_callback(image):
 def grab_approach_rgb_callback(image):
     global grab_approach_rgb_image
     try:
-        grab_approach_rgb_image = rgb_bridge.imgmsg_to_cv2(image, "bgr8")
+        grab_approach_rgb_image = grab_approach_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
         # cv2.namedWindow('grab_approach_rgb_image', cv2.WINDOW_NORMAL)
         # cv2.imshow('grab_approach_rgb_image', grab_approach_rgb_image)
         # cv2.waitKey(1)
@@ -179,10 +122,10 @@ def grab_approach_rgb_callback(image):
 def grab_open_rgb_callback(image):
     global grab_open_rgb_image
     try:
-        grab_open_rgb_image = rgb_bridge.imgmsg_to_cv2(image, "bgr8")
-        cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
-        cv2.imshow('grab_open_rgb_image', grab_open_rgb_image)
-        cv2.waitKey(1)
+        grab_open_rgb_image = grab_open_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
+        # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
+        # cv2.imshow('grab_open_rgb_image', grab_open_rgb_image)
+        # cv2.waitKey(1)
     except CvBridgeError as e:
         print(e)
 
@@ -190,15 +133,28 @@ if __name__ == '__main__':
 
     rospy.init_node('Reinforcement_Learning_Trining', anonymous=True)
 
+    # Create ROS subscriber for gripper working area pointcloud
     rospy.Subscriber("/Grab_PointClouds", PointCloud2, grab_pointClouds_callback, buff_size=52428800)
+
+    # Create ROS subscriber for mapping rgb image from Azure input pointcloud
     rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
+
+    # Create ROS subscriber for mapping rgb image from Azure input pointcloud
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+    
+    # Create ROS subscriber for number of pointcloud in gripper working area (the reward of reinforcement learning agent...?)
     rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, number_of_grab_pointClouds_callback)
 
+    # Create ROS subscriber for mapping rgb image from gripper axis of normal vector (the state of reinforcement learning agent)
     rospy.Subscriber("/projected_image/grab_normal_rgb", Image, grab_normal_rgb_callback)
+
+    # Create ROS subscriber for mapping rgb image from gripper axis of approach vector (the state of reinforcement learning agent)
     rospy.Subscriber("/projected_image/grab_approach_rgb", Image, grab_approach_rgb_callback)
+
+    # Create ROS subscriber for mapping rgb image from gripper axis of open vector (the state of reinforcement learning agent)
     rospy.Subscriber("/projected_image/grab_open_rgb", Image, grab_open_rgb_callback)
 
+    # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
     rotation = AngleAxis_rotation_msg()
