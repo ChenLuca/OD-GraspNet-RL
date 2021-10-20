@@ -7,6 +7,22 @@ import numpy as np
 import math
 
 import tensorflow as tf
+
+def solve_cudnn_error():
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+
+solve_cudnn_error()
+
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 from rl_training.msg import AngleAxis_rotation_msg
@@ -20,14 +36,16 @@ from std_msgs.msg import Int64
 from cv_bridge import CvBridge, CvBridgeError
 
 import abc
-from tf_agents.environments import random_py_environment
+from tf_agents.environments import py_environment
+from tf_agents.environments import tf_environment
 from tf_agents.environments import tf_py_environment
-from tf_agents.networks import encoding_network
-from tf_agents.networks import network
-from tf_agents.networks import utils
+from tf_agents.environments import utils
 from tf_agents.specs import array_spec
-from tf_agents.utils import common as common_utils
-from tf_agents.utils import nest_utils
+from tf_agents.environments import wrappers
+from tf_agents.environments import suite_gym
+from tf_agents.trajectories import time_step as ts
+
+tf.compat.v1.enable_v2_behavior()
 
 rgb_bridge = CvBridge()
 depth_bridge = CvBridge()
@@ -97,7 +115,7 @@ def depth_callback(image):
 def number_of_grab_pointClouds_callback(num):
     global number_of_grab_pointClouds
     number_of_grab_pointClouds = num
-    print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
+    # print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
 
 def grab_normal_rgb_callback(image):
     global grab_normal_rgb_image
@@ -128,6 +146,55 @@ def grab_open_rgb_callback(image):
         # cv2.waitKey(1)
     except CvBridgeError as e:
         print(e)
+
+class GraspEnv(py_environment.PyEnvironment):
+
+    def __init__(self):
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=1, name="action")
+
+        self._observation_spec = {"grab_normal":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255),
+                                    "grab_approach":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255),
+                                    "grab_open":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255)}
+
+        # self._observation_spec = array_spec.BoundedArraySpec(shape=(640, 480, 3), dtype=np.float32, minimum=0, maximum=255, name='observation')
+
+        # self._observation_spec = array_spec.BoundedArraySpec(shape=(1,), dtype=np.int32, minimum=0, name='observation')
+        # self._state = np.zeros((640,480,3), np.float32)
+
+        self._state = {"grab_normal":np.zeros((640, 480, 3), np.float32),
+                        "grab_approach":np.zeros((640, 480, 3), np.float32),
+                        "grab_open":np.zeros((640, 480, 3), np.float32)}
+                        
+        self._episode_ended = False
+    
+    def action_spec(self):
+        return self._action_spec
+    
+    def observation_spec(self):
+        return self._observation_spec
+    
+    def _reset(self):
+        self._state = {"grab_normal":np.zeros((640, 480, 3), np.float32),
+                        "grab_approach":np.zeros((640, 480, 3), np.float32),
+                        "grab_open":np.zeros((640, 480, 3), np.float32)}
+        self._episode_ended = False
+        return ts.restart(self._state)
+
+    def _step(self, action):
+        
+        if self._episode_ended:
+            return self.reset()
+        
+        if action == 0:
+            reward = 1.0
+            self._episode_ended = True
+            return ts.termination(self._state, reward)
+
+        elif action == 1:
+            reward = 2.0
+            return ts.transition(self._state, reward, discount=1.0)
+        else:
+            raise ValueError("action should be 0 or 1!")
 
 if __name__ == '__main__':
 
@@ -161,10 +228,17 @@ if __name__ == '__main__':
     rotation_angle = math.pi/2
     interval = 100
 
+    environment = GraspEnv()
+    utils.validate_py_environment(environment, episodes=5)
+
+
     while not rospy.is_shutdown():
-        for i in range(interval):
-            rotation.x = 0
-            rotation.y = 0
-            rotation.z = 1*rotation_angle/interval*i
-            pub_AngleAxisRotation.publish(rotation)
-            time.sleep(0.1)
+        # for i in range(interval):
+        #     rotation.x = 0
+        #     rotation.y = 0
+        #     rotation.z = 1*rotation_angle/interval*i
+        #     pub_AngleAxisRotation.publish(rotation)
+        #     time.sleep(0.1)
+        time_step = environment.reset()
+        print(time_step.observation)
+
