@@ -39,10 +39,19 @@ import abc
 from tf_agents.environments import py_environment
 from tf_agents.environments import tf_environment
 from tf_agents.environments import tf_py_environment
-from tf_agents.environments import utils
-from tf_agents.specs import array_spec
+from tf_agents.environments import utils as env_utils
 from tf_agents.environments import wrappers
-from tf_agents.environments import suite_gym
+from tf_agents.environments import random_py_environment
+
+from tf_agents.specs import array_spec
+
+from tf_agents.networks import network
+from tf_agents.networks import encoding_network
+from tf_agents.networks import utils
+
+from tf_agents.utils import common as common_utils
+from tf_agents.utils import nest_utils
+
 from tf_agents.trajectories import time_step as ts
 
 tf.compat.v1.enable_v2_behavior()
@@ -57,14 +66,22 @@ grab_open_rgb_bridge = CvBridge()
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
 
-grab_normal_rgb_image = np.zeros((0,0,3), np.uint8)
-grab_approach_rgb_image = np.zeros((0,0,3), np.uint8)
-grab_open_rgb_image = np.zeros((0,0,3), np.uint8)
-
-number_of_grab_pointClouds = 0
+number_of_grab_pointClouds = 0.0
 
 xyz = np.array([[0,0,0]])
 rgb = np.array([[0,0,0]])
+
+def rotate_grasp():
+    rotation = AngleAxis_rotation_msg()
+    rotation_angle = math.pi/2
+    interval = 50
+
+    for i in range(interval):
+        rotation.x = 0
+        rotation.y = 0
+        rotation.z = 1*rotation_angle/interval*i
+        pub_AngleAxisRotation.publish(rotation)
+        time.sleep(0.1)
 
 def grab_pointClouds_callback(ros_point_cloud):
     global xyz, rgb
@@ -112,61 +129,75 @@ def depth_callback(image):
     except CvBridgeError as e:
         print(e)
 
-def number_of_grab_pointClouds_callback(num):
-    global number_of_grab_pointClouds
-    number_of_grab_pointClouds = num
-    # print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
-
-def grab_normal_rgb_callback(image):
-    global grab_normal_rgb_image
-    try:
-        grab_normal_rgb_image = grab_normal_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
-        # cv2.namedWindow('grab_normal_rgb_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('grab_normal_rgb_image', grab_normal_rgb_image)
-        # cv2.waitKey(1)
-    except CvBridgeError as e:
-        print(e)
-
-def grab_approach_rgb_callback(image):
-    global grab_approach_rgb_image
-    try:
-        grab_approach_rgb_image = grab_approach_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
-        # cv2.namedWindow('grab_approach_rgb_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('grab_approach_rgb_image', grab_approach_rgb_image)
-        # cv2.waitKey(1)
-    except CvBridgeError as e:
-        print(e)
-
-def grab_open_rgb_callback(image):
-    global grab_open_rgb_image
-    try:
-        grab_open_rgb_image = grab_open_rgb_bridge.imgmsg_to_cv2(image, "bgr8")
-        # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('grab_open_rgb_image', grab_open_rgb_image)
-        # cv2.waitKey(1)
-    except CvBridgeError as e:
-        print(e)
 
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=1, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(3,), dtype=np.float32, minimum=-math.pi/2, maximum=math.pi/2, name="action")
 
-        self._observation_spec = {"grab_normal":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255),
-                                    "grab_approach":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255),
-                                    "grab_open":array_spec.BoundedArraySpec((640, 480, 3), dtype = np.float32, minimum=0, maximum=255)}
+        self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255),
+                                    "grab_approach" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
+                                    # "grab_open" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
+                                    }
 
-        # self._observation_spec = array_spec.BoundedArraySpec(shape=(640, 480, 3), dtype=np.float32, minimum=0, maximum=255, name='observation')
-
-        # self._observation_spec = array_spec.BoundedArraySpec(shape=(1,), dtype=np.int32, minimum=0, name='observation')
-        # self._state = np.zeros((640,480,3), np.float32)
-
-        self._state = {"grab_normal":np.zeros((640, 480, 3), np.float32),
-                        "grab_approach":np.zeros((640, 480, 3), np.float32),
-                        "grab_open":np.zeros((640, 480, 3), np.float32)}
+        self._state = { "grab_normal" : np.zeros((480, 640, 3), np.float32),
+                        "grab_approach" : np.zeros((480, 640, 3), np.float32)
+                        # "grab_open" : np.zeros((480, 640, 3), np.float32)
+                        }
                         
         self._episode_ended = False
-    
+
+        self._reward = 0 
+
+        self.grab_normal_rgb_image = np.zeros((0,0,3), np.float32)
+        self.grab_approach_rgb_image = np.zeros((0,0,3), np.float32)
+        self.grab_open_rgb_image = np.zeros((0,0,3), np.float32)
+
+        # Create ROS subscriber for number of pointcloud in gripper working area (the reward of reinforcement learning agent...?)
+        rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, self.number_of_grab_pointClouds_callback)
+
+        # Create ROS subscriber for mapping rgb image from gripper axis of normal vector (the state of reinforcement learning agent)
+        rospy.Subscriber("/projected_image/grab_normal_rgb", Image, self.grab_normal_rgb_callback)
+
+        # Create ROS subscriber for mapping rgb image from gripper axis of approach vector (the state of reinforcement learning agent)
+        rospy.Subscriber("/projected_image/grab_approach_rgb", Image, self.grab_approach_rgb_callback)
+
+        # Create ROS subscriber for mapping rgb image from gripper axis of open vector (the state of reinforcement learning agent)
+        rospy.Subscriber("/projected_image/grab_open_rgb", Image, self.grab_open_rgb_callback)
+
+    def number_of_grab_pointClouds_callback(self, num):
+        self.number_of_grab_pointClouds = num.data
+        # print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
+
+    def grab_normal_rgb_callback(self, image):
+        try:
+            self.grab_normal_rgb_image = grab_normal_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
+            # cv2.namedWindow('grab_normal_rgb_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_normal_rgb_image', self.grab_normal_rgb_image)
+            # cv2.waitKey(1)
+            # cv2.imwrite("/home/luca-home-ubuntu20/code/RVP_GGCNN/grab_normal.jpg", self.grab_normal_rgb_image)
+            # print("self.grab_normal_rgb_image: ", self.grab_normal_rgb_image)
+        except CvBridgeError as e:
+            print(e)
+
+    def grab_approach_rgb_callback(self, image):
+        try:
+            self.grab_approach_rgb_image = grab_approach_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
+            # cv2.namedWindow('grab_approach_rgb_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_approach_rgb_image', grab_approach_rgb_image)
+            # cv2.waitKey(1)
+        except CvBridgeError as e:
+            print(e)
+
+    def grab_open_rgb_callback(self, image):
+        try:
+            self.grab_open_rgb_image = grab_open_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
+            # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_open_rgb_image', grab_open_rgb_image)
+            # cv2.waitKey(1)
+        except CvBridgeError as e:
+            print(e)
+
     def action_spec(self):
         return self._action_spec
     
@@ -174,27 +205,95 @@ class GraspEnv(py_environment.PyEnvironment):
         return self._observation_spec
     
     def _reset(self):
-        self._state = {"grab_normal":np.zeros((640, 480, 3), np.float32),
-                        "grab_approach":np.zeros((640, 480, 3), np.float32),
-                        "grab_open":np.zeros((640, 480, 3), np.float32)}
+        self._state = { "grab_normal" : np.zeros((480, 640, 3), np.float32),
+                        "grab_approach" : np.zeros((480, 640, 3), np.float32)
+                        # "grab_open" : np.zeros((480, 640, 3), np.float32)
+                        }
+        self._reward = 0 
         self._episode_ended = False
         return ts.restart(self._state)
+    
+    def _update_ROS_data(self):
+        self._state["grab_normal"] = self.grab_normal_rgb_image
+        self._state["grab_approach"] = self.grab_approach_rgb_image
+        self._state["grab_open"] = self.grab_open_rgb_image
+        self._reward = self.number_of_grab_pointClouds
 
     def _step(self, action):
+
+        self._update_ROS_data()
         
         if self._episode_ended:
             return self.reset()
         
-        if action == 0:
-            reward = 1.0
+        if action[0] == 0.0 and action[1] == 0.0 and action[2] == 0.0:
+            # print("environment stop!")
             self._episode_ended = True
-            return ts.termination(self._state, reward)
+            return ts.transition(self._state, self._reward, discount=1.0)
 
-        elif action == 1:
-            reward = 2.0
-            return ts.transition(self._state, reward, discount=1.0)
         else:
-            raise ValueError("action should be 0 or 1!")
+            return ts.transition(self._state, self._reward, discount=1.0)
+
+class ActorNetwork(network.Network):
+
+  def __init__(self,
+               observation_spec,
+               action_spec,
+               preprocessing_layers=None,
+               preprocessing_combiner=None,
+               conv_layer_params=None,
+               fc_layer_params=(75, 40),
+               dropout_layer_params=None,
+               activation_fn=tf.keras.activations.relu,
+               enable_last_layer_zero_initializer=False,
+               name='ActorNetwork'):
+    super(ActorNetwork, self).__init__(
+        input_tensor_spec=observation_spec, state_spec=(), name=name)
+
+    # For simplicity we will only support a single action float output.
+    self._action_spec = action_spec
+    flat_action_spec = tf.nest.flatten(action_spec)
+    if len(flat_action_spec) > 4:
+      raise ValueError('Only a single action is supported by this network')
+    self._single_action_spec = flat_action_spec[0]
+    if self._single_action_spec.dtype not in [tf.float32, tf.float64]:
+      raise ValueError('Only float actions are supported by this network.')
+
+    kernel_initializer = tf.keras.initializers.VarianceScaling(
+        scale=1. / 3., mode='fan_in', distribution='uniform')
+    self._encoder = encoding_network.EncodingNetwork(
+        observation_spec,
+        preprocessing_layers=preprocessing_layers,
+        preprocessing_combiner=preprocessing_combiner,
+        conv_layer_params=conv_layer_params,
+        fc_layer_params=fc_layer_params,
+        dropout_layer_params=dropout_layer_params,
+        activation_fn=activation_fn,
+        kernel_initializer=kernel_initializer,
+        batch_squash=False)
+
+    initializer = tf.keras.initializers.RandomUniform(
+        minval=-0.003, maxval=0.003)
+
+    self._action_projection_layer = tf.keras.layers.Dense(
+        flat_action_spec[0].shape.num_elements(),
+        activation=tf.keras.activations.tanh,
+        kernel_initializer=initializer,
+        name='action')
+
+  def call(self, observations, step_type=(), network_state=()):
+    outer_rank = nest_utils.get_outer_rank(observations, self.input_tensor_spec)
+    # We use batch_squash here in case the observations have a time sequence
+    # compoment.
+    batch_squash = utils.BatchSquash(outer_rank)
+    observations = tf.nest.map_structure(batch_squash.flatten, observations)
+
+    state, network_state = self._encoder(
+        observations, step_type=step_type, network_state=network_state)
+    actions = self._action_projection_layer(state)
+    actions = common_utils.scale_to_spec(actions, self._single_action_spec)
+    actions = batch_squash.unflatten(actions)
+    return tf.nest.pack_sequence_as(self._action_spec, [actions]), network_state
 
 if __name__ == '__main__':
 
@@ -208,37 +307,53 @@ if __name__ == '__main__':
 
     # Create ROS subscriber for mapping rgb image from Azure input pointcloud
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
-    
-    # Create ROS subscriber for number of pointcloud in gripper working area (the reward of reinforcement learning agent...?)
-    rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, number_of_grab_pointClouds_callback)
-
-    # Create ROS subscriber for mapping rgb image from gripper axis of normal vector (the state of reinforcement learning agent)
-    rospy.Subscriber("/projected_image/grab_normal_rgb", Image, grab_normal_rgb_callback)
-
-    # Create ROS subscriber for mapping rgb image from gripper axis of approach vector (the state of reinforcement learning agent)
-    rospy.Subscriber("/projected_image/grab_approach_rgb", Image, grab_approach_rgb_callback)
-
-    # Create ROS subscriber for mapping rgb image from gripper axis of open vector (the state of reinforcement learning agent)
-    rospy.Subscriber("/projected_image/grab_open_rgb", Image, grab_open_rgb_callback)
 
     # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
-    rotation = AngleAxis_rotation_msg()
-    rotation_angle = math.pi/2
-    interval = 100
-
     environment = GraspEnv()
-    utils.validate_py_environment(environment, episodes=5)
 
+    # env_utils.validate_py_environment(environment, episodes=5)
+
+    tf_env = tf_py_environment.TFPyEnvironment(environment)
+
+    preprocessing_layers = {
+    'grab_normal': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
+                                                tf.keras.layers.Conv2D(3, 3),
+                                                tf.keras.layers.Flatten()]),
+
+    'grab_approach': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
+                                                tf.keras.layers.Conv2D(3, 3),
+                                                tf.keras.layers.Flatten()])
+
+    # 'grab_open': tf.keras.models.Sequential([tf.keras.layers.Conv2D(8, 4),
+    #                                     tf.keras.layers.Flatten()]),    
+                                        }
+
+    preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
+
+    actor = ActorNetwork(tf_env.observation_spec(), 
+                     tf_env.action_spec(),
+                     preprocessing_layers=preprocessing_layers,
+                     preprocessing_combiner=preprocessing_combiner
+                    )
+
+    time_step = tf_env.reset()
+    print("time_step:", type(time_step))
+    action, _ = actor(time_step.observation, time_step.step_type)
+    print("action: ", action)
 
     while not rospy.is_shutdown():
-        # for i in range(interval):
-        #     rotation.x = 0
-        #     rotation.y = 0
-        #     rotation.z = 1*rotation_angle/interval*i
-        #     pub_AngleAxisRotation.publish(rotation)
-        #     time.sleep(0.1)
-        time_step = environment.reset()
-        print(time_step.observation)
+        
+        # rotate_grasp()
 
+        time_step = tf_env.step(action)
+
+        action = actor(time_step.observation, time_step.step_type)
+
+        # print("!")
+        print("action: ", action)
+
+        # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
+        # cv2.imshow('grab_open_rgb_image', np.array(tf.squeeze(time_step.observation["grab_normal"])))
+        # cv2.waitKey(1)

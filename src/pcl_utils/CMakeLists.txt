@@ -4,7 +4,9 @@ project(pcl_utils)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 add_compile_options(-std=c++11)
-set(PCL_INCLUDE_DIRS /usr/include/pcl-1.8)
+add_compile_options(-std=c++14)
+set(CMAKE_CXX_FLAGS "-std=c++11 -O3")
+set(PCL_INCLUDE_DIRS /usr/include/pcl-1.10)
 find_package(OpenCV REQUIRED)
 
 ## Find catkin macros and libraries
