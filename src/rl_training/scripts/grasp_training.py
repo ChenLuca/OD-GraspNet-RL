@@ -36,6 +36,10 @@ from std_msgs.msg import Int64
 from cv_bridge import CvBridge, CvBridgeError
 
 import abc
+import tf_agents
+from tf_agents.agents.dqn import dqn_agent
+from tf_agents.networks import q_network
+
 from tf_agents.environments import py_environment
 from tf_agents.environments import tf_environment
 from tf_agents.environments import tf_py_environment
@@ -44,11 +48,13 @@ from tf_agents.environments import wrappers
 from tf_agents.environments import random_py_environment
 
 from tf_agents.specs import array_spec
+from tf_agents.specs import tensor_spec
 
 from tf_agents.networks import network
 from tf_agents.networks import encoding_network
 from tf_agents.networks import utils
 
+from tf_agents.utils import common
 from tf_agents.utils import common as common_utils
 from tf_agents.utils import nest_utils
 
@@ -133,7 +139,7 @@ def depth_callback(image):
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(3,), dtype=np.float32, minimum=-math.pi/2, maximum=math.pi/2, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=14, name="action")
 
         self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255),
                                     "grab_approach" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
@@ -247,6 +253,7 @@ class ActorNetwork(network.Network):
                activation_fn=tf.keras.activations.relu,
                enable_last_layer_zero_initializer=False,
                name='ActorNetwork'):
+
     super(ActorNetwork, self).__init__(
         input_tensor_spec=observation_spec, state_spec=(), name=name)
 
@@ -261,6 +268,7 @@ class ActorNetwork(network.Network):
 
     kernel_initializer = tf.keras.initializers.VarianceScaling(
         scale=1. / 3., mode='fan_in', distribution='uniform')
+
     self._encoder = encoding_network.EncodingNetwork(
         observation_spec,
         preprocessing_layers=preprocessing_layers,
@@ -294,6 +302,8 @@ class ActorNetwork(network.Network):
     actions = common_utils.scale_to_spec(actions, self._single_action_spec)
     actions = batch_squash.unflatten(actions)
     return tf.nest.pack_sequence_as(self._action_spec, [actions]), network_state
+
+
 
 if __name__ == '__main__':
 
@@ -332,28 +342,40 @@ if __name__ == '__main__':
 
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
 
-    actor = ActorNetwork(tf_env.observation_spec(), 
-                     tf_env.action_spec(),
-                     preprocessing_layers=preprocessing_layers,
-                     preprocessing_combiner=preprocessing_combiner
-                    )
+
+    my_q_network = tf_agents.networks.q_network.QNetwork(
+                    tf_env.observation_spec(), 
+                    tf_env.action_spec(), 
+                    preprocessing_layers=preprocessing_layers,
+                    preprocessing_combiner=preprocessing_combiner, 
+                    conv_layer_params=None, 
+                    fc_layer_params=(75, 40),
+                    dropout_layer_params=None, 
+                    activation_fn=tf.keras.activations.relu,
+                    kernel_initializer=None, 
+                    batch_squash=True, 
+                    dtype=tf.float32,
+                    name='QNetwork'
+                )
+
+    learning_rate = 1e-3
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    train_step_counter = tf.Variable(0)
+
+    agent = dqn_agent.DqnAgent(
+        tf_env.time_step_spec(),
+        tf_env.action_spec(),
+        q_network=my_q_network,
+        optimizer=optimizer,
+        td_errors_loss_fn=common.element_wise_squared_loss,
+        train_step_counter=train_step_counter)
+
+    agent.initialize()
 
     time_step = tf_env.reset()
-    print("time_step:", type(time_step))
-    action, _ = actor(time_step.observation, time_step.step_type)
-    print("action: ", action)
 
     while not rospy.is_shutdown():
+
+        print("ros is not shutdown!")
         
         # rotate_grasp()
-
-        time_step = tf_env.step(action)
-
-        action = actor(time_step.observation, time_step.step_type)
-
-        # print("!")
-        print("action: ", action)
-
-        # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('grab_open_rgb_image', np.array(tf.squeeze(time_step.observation["grab_normal"])))
-        # cv2.waitKey(1)
