@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import cv2
+from tensorflow.python.ops.math_ops import truediv
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
 import rospy
 import numpy as np
@@ -139,7 +140,7 @@ def depth_callback(image):
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=14, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=5, name="action")
 
         self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255),
                                     "grab_approach" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
@@ -154,10 +155,15 @@ class GraspEnv(py_environment.PyEnvironment):
         self._episode_ended = False
 
         self._reward = 0 
+        self._step_counter = 0
 
         self.grab_normal_rgb_image = np.zeros((0,0,3), np.float32)
         self.grab_approach_rgb_image = np.zeros((0,0,3), np.float32)
         self.grab_open_rgb_image = np.zeros((0,0,3), np.float32)
+
+        self.rotate_x = 0 
+        self.rotate_y = 0 
+        self.rotate_z = 0 
 
         # Create ROS subscriber for number of pointcloud in gripper working area (the reward of reinforcement learning agent...?)
         rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, self.number_of_grab_pointClouds_callback)
@@ -217,8 +223,68 @@ class GraspEnv(py_environment.PyEnvironment):
                         }
         self._reward = 0 
         self._episode_ended = False
+        self.rotate_x = 0 
+        self.rotate_y = 0 
+        self.rotate_z = 0 
         return ts.restart(self._state)
     
+    def _rotate_grasp(self, rotate_axis):
+        
+        rotation = AngleAxis_rotation_msg()
+        rotation.x = self.rotate_x
+        rotation.y = self.rotate_y
+        rotation.z = self.rotate_z
+
+        # 5 degree
+        rotation_angle = math.pi/36
+
+        if rotate_axis not in ["x", "-x", "y", "-y", "z", "-z"]:
+
+            print("rotate_axis must in [x, y, z ,-x, -y, -z]!!")
+        
+        else:
+            if rotate_axis == "x":
+
+                self.rotate_x = self.rotate_x + rotation_angle
+                
+                rotation.x = self.rotate_x
+
+            elif rotate_axis == "-x":
+
+                self.rotate_x = self.rotate_x + rotation_angle
+
+                rotation.x = -1 * self.rotate_x
+
+            elif rotate_axis == "y":
+
+                self.rotate_y = self.rotate_y + rotation_angle
+
+                rotation.y = self.rotate_y 
+
+            elif rotate_axis == "-y":
+
+                self.rotate_y = self.rotate_y + rotation_angle
+
+                rotation.y = -1 * self.rotate_y 
+
+            elif rotate_axis == "z":
+
+                self.rotate_z = self.rotate_z + rotation_angle
+
+                rotation.z = self.rotate_z
+
+            elif rotate_axis == "-z":
+
+                self.rotate_z = self.rotate_z + rotation_angle
+
+                rotation.z = -1 * self.rotate_z
+            else:
+                print("something wrong..")
+
+            pub_AngleAxisRotation.publish(rotation)
+
+
+
     def _update_ROS_data(self):
         self._state["grab_normal"] = self.grab_normal_rgb_image
         self._state["grab_approach"] = self.grab_approach_rgb_image
@@ -232,77 +298,42 @@ class GraspEnv(py_environment.PyEnvironment):
         if self._episode_ended:
             return self.reset()
         
-        if action[0] == 0.0 and action[1] == 0.0 and action[2] == 0.0:
-            # print("environment stop!")
+        if action == 0:
+
+            self._rotate_grasp("x")
+
+        elif action ==1:
+
+            self._rotate_grasp("-x")
+
+        elif action ==2:
+
+            self._rotate_grasp("y")
+
+        elif action ==3:
+
+            self._rotate_grasp("-y")
+
+        elif action ==4:
+
+            self._rotate_grasp("z")
+
+        elif action ==5:
+
+            self._rotate_grasp("-z")
+
+        else:
             self._episode_ended = True
-            return ts.transition(self._state, self._reward, discount=1.0)
+        
+        self._step_counter = self._step_counter +1
+        
+        if self._step_counter > 50:
+            self._episode_ended = True
+            self._step_counter = 0
+            return ts.termination(self._state, self._reward)
 
         else:
             return ts.transition(self._state, self._reward, discount=1.0)
-
-class ActorNetwork(network.Network):
-
-  def __init__(self,
-               observation_spec,
-               action_spec,
-               preprocessing_layers=None,
-               preprocessing_combiner=None,
-               conv_layer_params=None,
-               fc_layer_params=(75, 40),
-               dropout_layer_params=None,
-               activation_fn=tf.keras.activations.relu,
-               enable_last_layer_zero_initializer=False,
-               name='ActorNetwork'):
-
-    super(ActorNetwork, self).__init__(
-        input_tensor_spec=observation_spec, state_spec=(), name=name)
-
-    # For simplicity we will only support a single action float output.
-    self._action_spec = action_spec
-    flat_action_spec = tf.nest.flatten(action_spec)
-    if len(flat_action_spec) > 4:
-      raise ValueError('Only a single action is supported by this network')
-    self._single_action_spec = flat_action_spec[0]
-    if self._single_action_spec.dtype not in [tf.float32, tf.float64]:
-      raise ValueError('Only float actions are supported by this network.')
-
-    kernel_initializer = tf.keras.initializers.VarianceScaling(
-        scale=1. / 3., mode='fan_in', distribution='uniform')
-
-    self._encoder = encoding_network.EncodingNetwork(
-        observation_spec,
-        preprocessing_layers=preprocessing_layers,
-        preprocessing_combiner=preprocessing_combiner,
-        conv_layer_params=conv_layer_params,
-        fc_layer_params=fc_layer_params,
-        dropout_layer_params=dropout_layer_params,
-        activation_fn=activation_fn,
-        kernel_initializer=kernel_initializer,
-        batch_squash=False)
-
-    initializer = tf.keras.initializers.RandomUniform(
-        minval=-0.003, maxval=0.003)
-
-    self._action_projection_layer = tf.keras.layers.Dense(
-        flat_action_spec[0].shape.num_elements(),
-        activation=tf.keras.activations.tanh,
-        kernel_initializer=initializer,
-        name='action')
-
-  def call(self, observations, step_type=(), network_state=()):
-    outer_rank = nest_utils.get_outer_rank(observations, self.input_tensor_spec)
-    # We use batch_squash here in case the observations have a time sequence
-    # compoment.
-    batch_squash = utils.BatchSquash(outer_rank)
-    observations = tf.nest.map_structure(batch_squash.flatten, observations)
-
-    state, network_state = self._encoder(
-        observations, step_type=step_type, network_state=network_state)
-    actions = self._action_projection_layer(state)
-    actions = common_utils.scale_to_spec(actions, self._single_action_spec)
-    actions = batch_squash.unflatten(actions)
-    return tf.nest.pack_sequence_as(self._action_spec, [actions]), network_state
-
 
 
 if __name__ == '__main__':
@@ -329,11 +360,9 @@ if __name__ == '__main__':
 
     preprocessing_layers = {
     'grab_normal': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
-                                                tf.keras.layers.Conv2D(3, 3),
                                                 tf.keras.layers.Flatten()]),
 
     'grab_approach': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
-                                                tf.keras.layers.Conv2D(3, 3),
                                                 tf.keras.layers.Flatten()])
 
     # 'grab_open': tf.keras.models.Sequential([tf.keras.layers.Conv2D(8, 4),
@@ -349,7 +378,7 @@ if __name__ == '__main__':
                     preprocessing_layers=preprocessing_layers,
                     preprocessing_combiner=preprocessing_combiner, 
                     conv_layer_params=None, 
-                    fc_layer_params=(75, 40),
+                    fc_layer_params=(50, 25),
                     dropout_layer_params=None, 
                     activation_fn=tf.keras.activations.relu,
                     kernel_initializer=None, 
@@ -372,10 +401,78 @@ if __name__ == '__main__':
 
     agent.initialize()
 
+    replay_buffer = tf_agents.replay_buffers.tf_uniform_replay_buffer.TFUniformReplayBuffer(data_spec=agent.collect_data_spec,
+                                                                                            batch_size=tf_env.batch_size,
+                                                                                            max_length=100)
+
+    def compute_avg_return(environment, policy, num_episodes=10):
+        total_return = 0.0
+        for _ in range(num_episodes):
+
+            time_step = environment.reset()
+            episode_return = 0.0
+
+            while not time_step.is_last():
+                action_step = policy.action(time_step)
+                time_step = environment.step(action_step.action)
+                episode_return += time_step.reward
+            total_return += episode_return
+
+        avg_return = total_return / num_episodes
+        return avg_return.numpy()[0]
+
+    def collect_step(environment, policy, buffer):
+        time_step = environment.current_time_step()
+        action_step = policy.action(time_step)
+        next_time_step = environment.step(action_step.action)
+        print("next_time_step.reward ", next_time_step.reward)
+        traj = tf_agents.trajectories.trajectory.from_transition(time_step, action_step, next_time_step)
+
+        # Add trajectory to the replay buffer
+        buffer.add_batch(traj)
+    
+    avg_return = compute_avg_return(tf_env, agent.policy, 5)
+    returns = [avg_return]
+
+    collect_steps_per_iteration = 1
+    batch_size = 64
+    dataset = replay_buffer.as_dataset(num_parallel_calls=3, 
+                                        sample_batch_size=batch_size, 
+                                        num_steps=2).prefetch(3)
+    iterator = iter(dataset)
+    num_iterations = 10000
+
     time_step = tf_env.reset()
+
 
     while not rospy.is_shutdown():
 
         print("ros is not shutdown!")
         
         # rotate_grasp()
+
+
+
+        for _ in range(batch_size):
+            collect_step(tf_env, agent.policy, replay_buffer)
+
+        # for _ in range(num_iterations):
+        #     # Collect a few steps using collect_policy and save to the replay buffer.
+        #     for _ in range(collect_steps_per_iteration):
+        #         collect_step(tf_env, agent.collect_policy, replay_buffer)
+
+        #     # Sample a batch of data from the buffer and update the agent's network.
+        #     experience, unused_info = next(iterator)
+        #     train_loss = agent.train(experience).loss
+
+        #     step = agent.train_step_counter.numpy()
+
+        #     # Print loss every 200 steps.
+        #     if step % 200 == 0:
+        #         print('step = {0}: loss = {1}'.format(step, train_loss))
+
+        #     # Evaluate agent's performance every 1000 steps.
+        #     if step % 1000 == 0:
+        #         avg_return = compute_avg_return(tf_env, agent.policy, 5)
+        #         print('step = {0}: Average Return = {1}'.format(step, avg_return))
+        #         returns.append(avg_return)
