@@ -361,13 +361,16 @@ if __name__ == '__main__':
 
     # conv must br modified!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     preprocessing_layers = {
-    'grab_normal': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
+    'grab_normal': tf.keras.models.Sequential([ 
+        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
                                                 tf.keras.layers.Flatten()]),
 
-    'grab_approach': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
+    'grab_approach': tf.keras.models.Sequential([ 
+        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
                                                 tf.keras.layers.Flatten()]),
 
-    'grab_open': tf.keras.models.Sequential([tf.keras.layers.Conv2D(3, 3),
+    'grab_open': tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
                                         tf.keras.layers.Flatten()]),    
                                         }
 
@@ -380,7 +383,7 @@ if __name__ == '__main__':
                     preprocessing_layers=preprocessing_layers,
                     preprocessing_combiner=preprocessing_combiner, 
                     conv_layer_params=None, 
-                    fc_layer_params=(50, 25),
+                    fc_layer_params=(75, 25),
                     dropout_layer_params=None, 
                     activation_fn=tf.keras.activations.relu,
                     kernel_initializer=None, 
@@ -403,9 +406,11 @@ if __name__ == '__main__':
 
     agent.initialize()
 
+    print("my_q_network.summary(): ", my_q_network.summary())
+
     replay_buffer = tf_agents.replay_buffers.tf_uniform_replay_buffer.TFUniformReplayBuffer(data_spec=agent.collect_data_spec,
                                                                                             batch_size=tf_env.batch_size,
-                                                                                            max_length=1000)
+                                                                                            max_length=64*20)
 
     def compute_avg_return(environment, policy, num_episodes=10):
         total_return = 0.0
