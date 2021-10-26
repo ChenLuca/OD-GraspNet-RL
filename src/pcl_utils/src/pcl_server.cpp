@@ -922,15 +922,15 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     do_PerspectiveProjection(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
                               Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Approach_PwPs,
-                              320, 240, 300, 300);
+                              Mapping_width/2, Mapping_high/2, 300, 300);
     
     do_PerspectiveProjection(retransform_open_vector_plane_cloud, Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_Depth_Image, 
                             Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Open_PwPs,
-                            320, 240, 300, 300);
+                            Mapping_width/2, Mapping_high/2, 300, 300);
 
     do_PerspectiveProjection(retransform_normal_vector_plane_cloud, Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_Depth_Image, 
                             Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Normal_PwPs,
-                            320, 240, 300, 300);
+                            Mapping_width/2, Mapping_high/2, 300, 300);
 
     cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(14, 14));  
     
@@ -943,6 +943,16 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cv::dilate(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, Grab_element);
     cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); // <===應該是平的！！！
     //=== Project Image === [end]
+
+    cv::Size cv_downsize = cv::Size(320, 240);
+    
+    cv::resize(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, cv_downsize, cv::INTER_AREA);
+    cv::resize(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, cv_downsize, cv::INTER_AREA);
+    cv::resize(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, cv_downsize, cv::INTER_AREA);
+
+    cv::resize(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, cv_downsize, cv::INTER_AREA);
+    cv::resize(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, cv_downsize, cv::INTER_AREA);
+    cv::resize(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, cv_downsize, cv::INTER_AREA);
 
     
     if(SHOW_CV_WINDOWS)

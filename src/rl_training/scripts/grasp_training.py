@@ -142,14 +142,15 @@ class GraspEnv(py_environment.PyEnvironment):
     def __init__(self):
         self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=5, name="action")
 
-        self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255),
-                                    "grab_approach" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
-                                    # "grab_open" : array_spec.BoundedArraySpec((480, 640, 3), dtype = np.float32, minimum=0, maximum=255)
+        self.input_image_size = [240, 320] 
+        self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
+                                    "grab_approach" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
+                                    "grab_open" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
                                     }
 
-        self._state = { "grab_normal" : np.zeros((480, 640, 3), np.float32),
-                        "grab_approach" : np.zeros((480, 640, 3), np.float32)
-                        # "grab_open" : np.zeros((480, 640, 3), np.float32)
+        self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+                        "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+                        "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
                         }
                         
         self._episode_ended = False
@@ -217,9 +218,9 @@ class GraspEnv(py_environment.PyEnvironment):
         return self._observation_spec
     
     def _reset(self):
-        self._state = { "grab_normal" : np.zeros((480, 640, 3), np.float32),
-                        "grab_approach" : np.zeros((480, 640, 3), np.float32)
-                        # "grab_open" : np.zeros((480, 640, 3), np.float32)
+        self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+                        "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+                        "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
                         }
         self._reward = 0 
         self._episode_ended = False
@@ -289,7 +290,7 @@ class GraspEnv(py_environment.PyEnvironment):
         self._state["grab_normal"] = self.grab_normal_rgb_image
         self._state["grab_approach"] = self.grab_approach_rgb_image
         self._state["grab_open"] = self.grab_open_rgb_image
-        self._reward = self.number_of_grab_pointClouds
+        self._reward = self.number_of_grab_pointClouds-70-self._step_counter
 
     def _step(self, action):
 
@@ -358,15 +359,16 @@ if __name__ == '__main__':
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
+    # conv must br modified!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     preprocessing_layers = {
     'grab_normal': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
                                                 tf.keras.layers.Flatten()]),
 
     'grab_approach': tf.keras.models.Sequential([ tf.keras.layers.Conv2D(3, 3),
-                                                tf.keras.layers.Flatten()])
+                                                tf.keras.layers.Flatten()]),
 
-    # 'grab_open': tf.keras.models.Sequential([tf.keras.layers.Conv2D(8, 4),
-    #                                     tf.keras.layers.Flatten()]),    
+    'grab_open': tf.keras.models.Sequential([tf.keras.layers.Conv2D(3, 3),
+                                        tf.keras.layers.Flatten()]),    
                                         }
 
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
@@ -403,7 +405,7 @@ if __name__ == '__main__':
 
     replay_buffer = tf_agents.replay_buffers.tf_uniform_replay_buffer.TFUniformReplayBuffer(data_spec=agent.collect_data_spec,
                                                                                             batch_size=tf_env.batch_size,
-                                                                                            max_length=100)
+                                                                                            max_length=1000)
 
     def compute_avg_return(environment, policy, num_episodes=10):
         total_return = 0.0
@@ -425,7 +427,7 @@ if __name__ == '__main__':
         time_step = environment.current_time_step()
         action_step = policy.action(time_step)
         next_time_step = environment.step(action_step.action)
-        print("next_time_step.reward ", next_time_step.reward)
+        # print("next_time_step.reward ", next_time_step.reward)
         traj = tf_agents.trajectories.trajectory.from_transition(time_step, action_step, next_time_step)
 
         # Add trajectory to the replay buffer
@@ -446,8 +448,8 @@ if __name__ == '__main__':
 
 
     while not rospy.is_shutdown():
-
-        print("ros is not shutdown!")
+        # pass
+        # print("ros is not shutdown!")
         
         # rotate_grasp()
 
@@ -456,23 +458,23 @@ if __name__ == '__main__':
         for _ in range(batch_size):
             collect_step(tf_env, agent.policy, replay_buffer)
 
-        # for _ in range(num_iterations):
-        #     # Collect a few steps using collect_policy and save to the replay buffer.
-        #     for _ in range(collect_steps_per_iteration):
-        #         collect_step(tf_env, agent.collect_policy, replay_buffer)
+        for _ in range(num_iterations):
+            # Collect a few steps using collect_policy and save to the replay buffer.
+            for _ in range(collect_steps_per_iteration):
+                collect_step(tf_env, agent.collect_policy, replay_buffer)
 
-        #     # Sample a batch of data from the buffer and update the agent's network.
-        #     experience, unused_info = next(iterator)
-        #     train_loss = agent.train(experience).loss
+            # Sample a batch of data from the buffer and update the agent's network.
+            experience, unused_info = next(iterator)
+            train_loss = agent.train(experience).loss
 
-        #     step = agent.train_step_counter.numpy()
+            step = agent.train_step_counter.numpy()
 
-        #     # Print loss every 200 steps.
-        #     if step % 200 == 0:
-        #         print('step = {0}: loss = {1}'.format(step, train_loss))
+            # Print loss every 200 steps.
+            if step % 200 == 0:
+                print('step = {0}: loss = {1}'.format(step, train_loss))
 
-        #     # Evaluate agent's performance every 1000 steps.
-        #     if step % 1000 == 0:
-        #         avg_return = compute_avg_return(tf_env, agent.policy, 5)
-        #         print('step = {0}: Average Return = {1}'.format(step, avg_return))
-        #         returns.append(avg_return)
+            # Evaluate agent's performance every 1000 steps.
+            if step % 1000 == 0:
+                avg_return = compute_avg_return(tf_env, agent.policy, 5)
+                print('step = {0}: Average Return = {1}'.format(step, avg_return))
+                returns.append(avg_return)
