@@ -33,7 +33,7 @@ import sensor_msgs.point_cloud2 as pc2
 import ctypes
 import struct
 
-from std_msgs.msg import Int64
+from std_msgs.msg import Int64, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
 import abc
@@ -72,8 +72,6 @@ grab_open_rgb_bridge = CvBridge()
 
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
-
-number_of_grab_pointClouds = 0.0
 
 xyz = np.array([[0,0,0]])
 rgb = np.array([[0,0,0]])
@@ -139,10 +137,10 @@ def depth_callback(image):
 
 class GraspEnv(py_environment.PyEnvironment):
 
-    def __init__(self):
+    def __init__(self, input_image_size):
         self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=5, name="action")
 
-        self.input_image_size = [240, 320] 
+        self.input_image_size = input_image_size
         self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
                                     "grab_approach" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
                                     "grab_open" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
@@ -157,6 +155,11 @@ class GraspEnv(py_environment.PyEnvironment):
 
         self._reward = 0 
         self._step_counter = 0
+        self._step_lengh = 50
+        self._number_of_grab_pointClouds = 0
+        self._number_of_finger_grab_pointClouds = 0
+        self.pointLikelihoos_left_finger = 0
+        self.pointLikelihoos_right_finger = 0
 
         self.grab_normal_rgb_image = np.zeros((0,0,3), np.float32)
         self.grab_approach_rgb_image = np.zeros((0,0,3), np.float32)
@@ -178,9 +181,28 @@ class GraspEnv(py_environment.PyEnvironment):
         # Create ROS subscriber for mapping rgb image from gripper axis of open vector (the state of reinforcement learning agent)
         rospy.Subscriber("/projected_image/grab_open_rgb", Image, self.grab_open_rgb_callback)
 
+        rospy.Subscriber("/Number_of_Finger_Grab_PointClouds", Int64, self.finger_point_callback)
+
+
+        rospy.Subscriber("/PointLikelihoos/Left_Finger", Float64, self.pointLikelihoos_left_finger_callback)
+
+        rospy.Subscriber("/PointLikelihoos/Right_Finger", Float64, self.pointLikelihoos_right_finger_callback)
+
+    def pointLikelihoos_left_finger_callback(self, num):
+        self.pointLikelihoos_left_finger = num.data
+        # print("self.pointLikelihoos_left_finger ", self.pointLikelihoos_left_finger)
+
+    def pointLikelihoos_right_finger_callback(self, num):
+        self.pointLikelihoos_right_finger = num.data
+        # print("self.pointLikelihoos_right_finger ", self.pointLikelihoos_right_finger)
+
+    def finger_point_callback(self, num):
+        self._number_of_finger_grab_pointClouds = num.data
+        # print("self._number_of_finger_grab_pointClouds ", self._number_of_finger_grab_pointClouds)
+
     def number_of_grab_pointClouds_callback(self, num):
-        self.number_of_grab_pointClouds = num.data
-        # print("number_of_grab_pointClouds: ", number_of_grab_pointClouds)
+        self._number_of_grab_pointClouds = num.data
+        # print("self.number_of_grab_pointClouds: ", self._number_of_grab_pointClouds)
 
     def grab_normal_rgb_callback(self, image):
         try:
@@ -218,10 +240,11 @@ class GraspEnv(py_environment.PyEnvironment):
         return self._observation_spec
     
     def _reset(self):
-        self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-                        "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-                        "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
-                        }
+        # self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+        #                 "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
+        #                 "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
+        #                 }
+        self._update_ROS_data()
         self._reward = 0 
         self._episode_ended = False
         self.rotate_x = 0 
@@ -290,12 +313,15 @@ class GraspEnv(py_environment.PyEnvironment):
         self._state["grab_normal"] = self.grab_normal_rgb_image
         self._state["grab_approach"] = self.grab_approach_rgb_image
         self._state["grab_open"] = self.grab_open_rgb_image
-        self._reward = self.number_of_grab_pointClouds-70-self._step_counter
+
+    def _update_reward(self):
+        self._reward = self._number_of_grab_pointClouds - 70 - self._step_counter - self._number_of_finger_grab_pointClouds - self.pointLikelihoos_right_finger - self.pointLikelihoos_left_finger
 
     def _step(self, action):
 
         self._update_ROS_data()
-        
+        self._update_reward()
+
         if self._episode_ended:
             return self.reset()
         
@@ -328,7 +354,7 @@ class GraspEnv(py_environment.PyEnvironment):
         
         self._step_counter = self._step_counter +1
         
-        if self._step_counter > 50:
+        if self._step_counter > self._step_lengh:
             self._episode_ended = True
             self._step_counter = 0
             return ts.termination(self._state, self._reward)
@@ -353,13 +379,13 @@ if __name__ == '__main__':
     # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
-    environment = GraspEnv()
+    environment = GraspEnv([240, 320])
 
     # env_utils.validate_py_environment(environment, episodes=5)
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    # conv must br modified!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # conv must be modified!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     preprocessing_layers = {
     'grab_normal': tf.keras.models.Sequential([ 
         tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),

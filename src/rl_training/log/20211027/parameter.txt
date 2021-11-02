@@ -1,0 +1,148 @@
+self.input_image_size = [240, 320] 
+
+
+self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
+                            "grab_approach" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
+                            "grab_open" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
+                            }
+
+
+preprocessing_layers = {
+'grab_normal': tf.keras.models.Sequential([ 
+tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
+                                        tf.keras.layers.Flatten()]),
+
+'grab_approach': tf.keras.models.Sequential([ 
+tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
+                                        tf.keras.layers.Flatten()]),
+
+'grab_open': tf.keras.models.Sequential([
+tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
+                                tf.keras.layers.Flatten()]),    
+                                }
+
+my_q_network = tf_agents.networks.q_network.QNetwork(
+            tf_env.observation_spec(), 
+            tf_env.action_spec(), 
+            preprocessing_layers=preprocessing_layers,
+            preprocessing_combiner=preprocessing_combiner, 
+            conv_layer_params=None, 
+            fc_layer_params=(75, 25),
+            dropout_layer_params=None, 
+            activation_fn=tf.keras.activations.relu,
+            kernel_initializer=None, 
+            batch_squash=True, 
+            dtype=tf.float32,
+            name='QNetwork'
+        )
+
+
+learning_rate = 1e-3
+optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+
+
+def _rotate_grasp(self, rotate_axis):
+        
+        rotation = AngleAxis_rotation_msg()
+        rotation.x = self.rotate_x
+        rotation.y = self.rotate_y
+        rotation.z = self.rotate_z
+
+        # 5 degree
+        rotation_angle = math.pi/36
+
+        if rotate_axis not in ["x", "-x", "y", "-y", "z", "-z"]:
+
+            print("rotate_axis must in [x, y, z ,-x, -y, -z]!!")
+        
+        else:
+            if rotate_axis == "x":
+
+                self.rotate_x = self.rotate_x + rotation_angle
+                
+                rotation.x = self.rotate_x
+
+            elif rotate_axis == "-x":
+
+                self.rotate_x = self.rotate_x + rotation_angle
+
+                rotation.x = -1 * self.rotate_x
+
+            elif rotate_axis == "y":
+
+                self.rotate_y = self.rotate_y + rotation_angle
+
+                rotation.y = self.rotate_y 
+
+            elif rotate_axis == "-y":
+
+                self.rotate_y = self.rotate_y + rotation_angle
+
+                rotation.y = -1 * self.rotate_y 
+
+            elif rotate_axis == "z":
+
+                self.rotate_z = self.rotate_z + rotation_angle
+
+                rotation.z = self.rotate_z
+
+            elif rotate_axis == "-z":
+
+                self.rotate_z = self.rotate_z + rotation_angle
+
+                rotation.z = -1 * self.rotate_z
+            else:
+                print("something wrong..")
+
+            pub_AngleAxisRotation.publish(rotation)
+            
+            
+def _step(self, action):
+
+        self._update_ROS_data()
+        
+        if self._episode_ended:
+            return self.reset()
+        
+        if action == 0:
+
+            self._rotate_grasp("x")
+
+        elif action ==1:
+
+            self._rotate_grasp("-x")
+
+        elif action ==2:
+
+            self._rotate_grasp("y")
+
+        elif action ==3:
+
+            self._rotate_grasp("-y")
+
+        elif action ==4:
+
+            self._rotate_grasp("z")
+
+        elif action ==5:
+
+            self._rotate_grasp("-z")
+
+        else:
+            self._episode_ended = True
+        
+        self._step_counter = self._step_counter +1
+        
+        if self._step_counter > 50:
+            self._episode_ended = True
+            self._step_counter = 0
+            return ts.termination(self._state, self._reward)
+
+        else:
+            return ts.transition(self._state, self._reward, discount=1.0)               
+            
+def _update_ROS_data(self):
+	self._state["grab_normal"] = self.grab_normal_rgb_image
+	self._state["grab_approach"] = self.grab_approach_rgb_image
+	self._state["grab_open"] = self.grab_open_rgb_image
+	self._reward = self.number_of_grab_pointClouds-70-self._step_counter                                             

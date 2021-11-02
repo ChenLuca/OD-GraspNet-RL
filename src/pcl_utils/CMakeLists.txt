@@ -60,6 +60,7 @@ add_message_files(
    FILES
    grcnn_result.msg
    AngleAxis_rotation_msg.msg
+   coordinate_normal.msg
 )
 
 ## Generate services in the 'srv' folder

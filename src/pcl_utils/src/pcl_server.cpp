@@ -8,8 +8,12 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include "std_msgs/Int64.h"
+#include "std_msgs/Float64.h"
+
 #include "pcl_utils/grcnn_result.h"
 #include "pcl_utils/AngleAxis_rotation_msg.h"
+#include "pcl_utils/coordinate_normal.h"
+
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/highgui/highgui.hpp>
@@ -37,6 +41,7 @@
 #include <pcl/registration/icp_nl.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/filters/project_inliers.h>
+#include <pcl/features/normal_3d.h>
 
 #include "pcl_utils/snapshot.h"
 
@@ -54,10 +59,13 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, 
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNumFingerGrabPoint, pubGrabPointCloudsLeft, pubGrabPointCloudsRight, pubGrabPointCloudsLeftNormal, pubGrabPointCloudsRightNormal,
                pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal, 
                pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud,
-               pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud;
+               pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud,
+               pubRightFingerPoint,
+               pub_pose_left, pub_pose_right,
+               pubLeftLikelihood, pubRightLikelihood;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -70,7 +78,7 @@ image_transport::Publisher pubProject_Grab_Open_RGB_Image;
 image_transport::Publisher pubProject_Grab_Open_Depth_Image;
 
 //宣告的輸出的點雲的格式
-sensor_msgs::PointCloud2 Filter_output, grab_output, 
+sensor_msgs::PointCloud2 Filter_output, grab_output, grab_output_left, grab_output_right,
                          project_normal_vector_plane_output, 
                          project_approach_vector_plane_output, 
                          project_open_vector_plane_output,
@@ -79,7 +87,7 @@ sensor_msgs::PointCloud2 Filter_output, grab_output,
                          retransform_project_open_vector_plane_output;
 
 
-visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow;
+visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow, right_finger_point;
 
 //==============================
 
@@ -95,6 +103,12 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr Rotate_output_cloud(new pcl::PointCloud<p
 
 //Pointcloud of gripped area
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr grab_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of left gripped area
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr grab_cloud_left(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+//Pointcloud of right gripped area
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr grab_cloud_right(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 //Pointcloud of projected normal vector plane cloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr project_normal_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -543,6 +557,67 @@ AxisQuaterniond do_AngelAxis(Eigen::Vector3d &open_vector, Eigen::Vector3d &appr
   return AQ;
 }
 
+void do_calculate_normal(pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr
+                                   ,pcl::PointCloud<pcl::PointNormal>::Ptr cloud_normals1)
+{
+  pcl::NormalEstimation<pcl::PointXYZRGB, pcl::PointNormal> ne;
+  ne.setInputCloud (point_cloud_ptr);
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
+  ne.setSearchMethod (tree);
+  ne.setRadiusSearch (0.01);
+  ne.compute (*cloud_normals1);
+}
+
+pcl_utils::coordinate_normal  average_normal(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_cloud
+                                                  ,pcl::PointCloud<pcl::PointNormal>::Ptr input_normal){
+
+  pcl_utils::coordinate_normal average_normal;
+  average_normal.x=0;
+  average_normal.y=0;
+  average_normal.z=0;
+  average_normal.normal_x = 0.0;
+  average_normal.normal_y = 0.0;
+  average_normal.normal_z = 0.0;
+  int count = 0;
+
+  for (size_t currentPoint = 0; currentPoint < input_normal->points.size(); currentPoint++)
+	{
+    if(!(isnan(input_normal->points[currentPoint].normal[0])||
+         isnan(input_normal->points[currentPoint].normal[1])||
+         isnan(input_normal->points[currentPoint].normal[2])))
+    {
+      average_normal.x = average_normal.x + input_cloud->points[currentPoint].x;
+      average_normal.y = average_normal.y + input_cloud->points[currentPoint].y;
+      average_normal.z = average_normal.z + input_cloud->points[currentPoint].z;
+      average_normal.normal_x = average_normal.normal_x + input_normal->points[currentPoint].normal[0];
+      average_normal.normal_y = average_normal.normal_y + input_normal->points[currentPoint].normal[1];
+      average_normal.normal_z = average_normal.normal_z + input_normal->points[currentPoint].normal[2];
+		  
+      count++;
+      // std::cout << "Point:" << std::endl;
+      // cout << currentPoint << std::endl;
+		  // std::cout << "\town:" << average_normal.x << " "
+		  		                  // << average_normal.y << " "
+		  		                  // << average_normal.z << std::endl;
+
+		  // std::cout << "\tNormal:" << input_cloud->points[currentPoint].x << " "
+		  // 		                      << input_cloud->points[currentPoint].y << " "
+		  // 		                      << input_cloud->points[currentPoint].z << std::endl;
+    }
+  }
+  // printf("================\ncloud_size = %d \n",count);
+
+  average_normal.x = average_normal.x/count;
+  average_normal.y = average_normal.y/count;
+  average_normal.z = average_normal.z/count;
+  average_normal.normal_x = average_normal.normal_x/count;
+  average_normal.normal_y = average_normal.normal_y/count;
+  average_normal.normal_z = average_normal.normal_z/count;
+  
+  return average_normal;
+}
+
+
 bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
                                         pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point, oan_vector &output_oan_vector)
 {
@@ -551,8 +626,9 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   Eigen::Vector3d normal_vector(0, 1, 0);
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
-  float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2;
-  float thr = 2;
+  float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2, finger_length = 0.02;
+  float thr = 5;
+  float right_finger_x = 0, right_finger_y = 0, right_finger_z = 0;
 
   open_vector(0) = cos(-1*angle);
   open_vector(1) = sin(-1*angle);
@@ -570,6 +646,9 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
   // cout << "input_cloud->size(): " << input_cloud->size() << endl;
 
+  // cout << "open_vector: " << open_vector(0) << ", " << open_vector(1) << ", " << open_vector(2) << "\n\n";
+
+
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
     if (abs(PwPs[i].pixel.x - grcnn_predict.x) < thr & abs(PwPs[i].pixel.y - grcnn_predict.y) < thr)//need to be check for more carefully! Maybe multi points can be projected to the same point!
@@ -577,7 +656,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       cout << "find!" << "\n";
 
       float point_x, point_y, point_z;
-      int number_of_point = 0;
+      int number_of_point = 0, number_of_point_finger = 0;
 
       point_x = PwPs[i].point.x;
       point_y = PwPs[i].point.y;
@@ -590,32 +669,76 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       d_1 = point_x * open_vector(0) + point_y * open_vector(1) + point_z * open_vector(2);
       d_2 = point_x * approach_vector(0) + point_y * approach_vector(1) + point_z * approach_vector(2);
       d_3 = point_x * normal_vector(0) + point_y * normal_vector(1) + point_z * normal_vector(2);
+
       
+      // float O_theta = atan2(open_vector(0), open_vector(1));
+      // float O_phi = atan2(sqrt(open_vector(0)*open_vector(0) + open_vector(1)*open_vector(1)), open_vector(2)) + 3.1415926/2;
+
+      // right_finger_x = point_x;// + d_1 * sin(O_phi) * cos(O_theta);
+      // right_finger_y = point_y + d_1 * cos(O_phi);// + d_1 * sin(O_phi) * sin(O_theta);
+      // right_finger_z = point_z; 
 
       grab_cloud->clear();
+      grab_cloud_left->clear();
+      grab_cloud_right->clear();
+
+      float open_volume = 0;
 
       if(input_cloud->size()!= 0)
       {
         for (int i = 0; i < input_cloud->size(); i++)
         {
-          if (abs(input_cloud->points[i].x*open_vector(0) + input_cloud->points[i].y*open_vector(1) + input_cloud->points[i].z*open_vector(2) - d_1) < h_1)
+          if (abs(input_cloud->points[i].x*normal_vector(0) + input_cloud->points[i].y*normal_vector(1) + input_cloud->points[i].z*normal_vector(2) - d_3) < h_3)
           {
             if (abs(input_cloud->points[i].x*approach_vector(0) + input_cloud->points[i].y*approach_vector(1) + input_cloud->points[i].z*approach_vector(2) - d_2) < h_2)
             {
-              if (abs(input_cloud->points[i].x*normal_vector(0) + input_cloud->points[i].y*normal_vector(1) + input_cloud->points[i].z*normal_vector(2) - d_3) < h_3)
+
+              open_volume = input_cloud->points[i].x*open_vector(0) + input_cloud->points[i].y*open_vector(1) + input_cloud->points[i].z*open_vector(2) - d_1;
+
+              if (abs(open_volume) < h_1)
               {
                 grab_cloud->push_back(input_cloud->points[i]);
                 number_of_point++;
               }
+
+              if (open_volume > 0)
+              {
+                if (open_volume < h_1)
+                {
+                  grab_cloud_left->push_back(input_cloud->points[i]);
+
+                }
+              }
+
+              if (open_volume < 0)
+              {
+                if (open_volume > -1*h_1)
+                {
+                  grab_cloud_right->push_back(input_cloud->points[i]);
+                }
+              }
+              
+              if (abs(open_volume) < (h_1 + finger_length))
+              {
+                number_of_point_finger++;
+              }
+
             }
           }
         }
       }
 
-      std_msgs::Int64 num;
-      num.data = number_of_point;
-      // cout << "number_of_point:" << number_of_point << endl;
-      pubNumGrabPoint.publish(num);
+      // cout << "number_of_point_finger " << number_of_point_finger << ", number_of_point " << number_of_point << " finger_grab_point_num.data " 
+      //       << number_of_point_finger - number_of_point << "\n\n";
+
+      std_msgs::Int64 grab_point_num, finger_grab_point_num;
+
+      grab_point_num.data = number_of_point;
+      finger_grab_point_num.data = number_of_point_finger - number_of_point;
+
+      pubNumGrabPoint.publish(grab_point_num);
+
+      pubNumFingerGrabPoint.publish(finger_grab_point_num);
       
       //=========rviz marker=========
       open_arrow.header.stamp = ros::Time();
@@ -627,6 +750,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       open_arrow.pose.orientation.z = AQ.open_q.z();
       open_arrow.pose.orientation.w = AQ.open_q.w();
       open_arrow.scale.x = h_1;
+
 
       pubAngleAxisOpen.publish(open_arrow);
 
@@ -653,6 +777,14 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       approach_arrow.scale.x = h_2;
 
       pubAngleAxisApproach.publish(approach_arrow);
+
+      // right_finger_point.header.stamp = ros::Time();
+      // right_finger_point.pose.position.x = right_finger_x;
+      // right_finger_point.pose.position.y = right_finger_y;
+      // right_finger_point.pose.position.z = right_finger_z;
+
+      // pubRightFingerPoint.publish(right_finger_point);
+      
       //=========rviz marker=========
       // oan_vector output_oan_vector;
 
@@ -877,6 +1009,114 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     pcl::toROSMsg(*grab_cloud, grab_output);
     grab_output.header.frame_id = "depth_camera_link";
     pubGrabPointClouds.publish(grab_output);
+
+
+
+
+    pcl::toROSMsg(*grab_cloud_left, grab_output_left);
+    grab_output_left.header.frame_id = "depth_camera_link";
+    pubGrabPointCloudsLeft.publish(grab_output_left);
+
+    pcl::toROSMsg(*grab_cloud_right, grab_output_right);
+    grab_output_right.header.frame_id = "depth_camera_link";
+    pubGrabPointCloudsRight.publish(grab_output_right);
+
+
+    pcl::PointCloud<pcl::PointNormal>::Ptr left_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+    do_calculate_normal(grab_cloud_left, left_cloud_normal);
+    pcl_utils::coordinate_normal object_normal_left;
+    object_normal_left = average_normal(grab_cloud_left, left_cloud_normal);
+
+    pubGrabPointCloudsLeftNormal.publish(object_normal_left);
+
+    geometry_msgs::PoseStamped object_pose_left;
+
+    // object_pose_left.header.frame_id = "base_link";
+    object_pose_left.header.frame_id = "depth_camera_link";
+    object_pose_left.header.stamp = ros::Time::now();;
+    object_pose_left.header.seq = 1;
+    
+    geometry_msgs::Quaternion left_msg;
+
+    // extracting surface normals
+    tf::Vector3 left_axis_vector(object_normal_left.normal_x, object_normal_left.normal_y, object_normal_left.normal_z);
+    tf::Vector3 left_up_vector(1.0, 0.0, 0.0);
+
+    tf::Vector3 left_right_vector = left_axis_vector.cross(left_up_vector);
+    left_right_vector.normalized();
+    tf::Quaternion left_q(left_right_vector, -1.0*acos(left_axis_vector.dot(left_up_vector)));
+    left_q.normalize();
+    tf::quaternionTFToMsg(left_q, left_msg);
+
+    object_pose_left.pose.orientation = left_msg;
+    object_pose_left.pose.position.x = object_normal_left.x;
+    object_pose_left.pose.position.y = object_normal_left.y;
+    object_pose_left.pose.position.z = object_normal_left.z;
+
+    pub_pose_left.publish (object_pose_left);
+
+
+    cout << "object_normal_left: " << object_normal_left.normal_x << ", " << object_normal_left.normal_y << ", " << object_normal_left.normal_z <<"\n\n";
+    cout << "open vector: " << plane_coefficients_vector.open_vector(0) << ", " << plane_coefficients_vector.open_vector(1) << ", " << plane_coefficients_vector.open_vector(2) <<"\n\n";
+
+    //lower is better
+    float left_likelihood = abs(plane_coefficients_vector.open_vector(0) - object_normal_left.normal_x) + abs(plane_coefficients_vector.open_vector(1) - object_normal_left.normal_y) + abs(plane_coefficients_vector.open_vector(2) - object_normal_left.normal_z);
+    cout << "left_likelihood: " << left_likelihood << "\n\n";
+
+
+    //right finger====================================================================
+    pcl::PointCloud<pcl::PointNormal>::Ptr right_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+    do_calculate_normal(grab_cloud_right, right_cloud_normal);
+    pcl_utils::coordinate_normal object_normal_right;
+    object_normal_right = average_normal(grab_cloud_right, right_cloud_normal);
+
+    pubGrabPointCloudsRightNormal.publish(object_normal_right);
+
+    geometry_msgs::PoseStamped object_pose_right;
+
+    // object_pose_right.header.frame_id = "base_link";
+    object_pose_right.header.frame_id = "depth_camera_link";
+    object_pose_right.header.stamp = ros::Time::now();;
+    object_pose_right.header.seq = 1;
+    
+    geometry_msgs::Quaternion right_msg;
+
+    // extracting surface normals
+    tf::Vector3 right_axis_vector(object_normal_right.normal_x, object_normal_right.normal_y, object_normal_right.normal_z);
+    tf::Vector3 right_up_vector(1.0, 0.0, 0.0);
+
+    tf::Vector3 right_right_vector = right_axis_vector.cross(right_up_vector);
+    right_right_vector.normalized();
+    tf::Quaternion right_q(right_right_vector, -1.0*acos(right_axis_vector.dot(right_up_vector)));
+    right_q.normalize();
+    tf::quaternionTFToMsg(right_q, right_msg);
+
+    object_pose_right.pose.orientation = right_msg;
+    object_pose_right.pose.position.x = object_normal_right.x;
+    object_pose_right.pose.position.y = object_normal_right.y;
+    object_pose_right.pose.position.z = object_normal_right.z;
+    
+    pub_pose_right.publish (object_pose_right);
+
+
+    cout << "object_normal_right: " << object_normal_right.normal_x << ", " << object_normal_right.normal_y << ", " << object_normal_right.normal_z <<"\n\n";
+
+    //lower is better
+    float right_likelihood = abs(-1.0*plane_coefficients_vector.open_vector(0) - object_normal_right.normal_x) 
+                            + abs(-1.0*plane_coefficients_vector.open_vector(1) - object_normal_right.normal_y) 
+                            + abs(-1.0*plane_coefficients_vector.open_vector(2) - object_normal_right.normal_z);
+    cout << "right_likelihood: " << right_likelihood << "\n\n";
+
+
+    std_msgs::Float64 left_likelihood_msg, right_likelihood_msg;
+
+    left_likelihood_msg.data = left_likelihood;
+    right_likelihood_msg.data = right_likelihood;
+    pubLeftLikelihood.publish(left_likelihood_msg);
+    pubRightLikelihood.publish(right_likelihood_msg);
+
+    //====================================================================
+
     //=== publish plane pointcloud and grab pointcloud === [end]
 
     //=== Project plane Image === [begin]
@@ -1091,11 +1331,25 @@ int main (int argc, char** argv)
   approach_arrow.color.g = 0.0;
   approach_arrow.color.b = 1.0;
 
+  right_finger_point.header.frame_id = "depth_camera_link";
+  right_finger_point.ns = "my_namespace";
+  right_finger_point.id = 1;
+  right_finger_point.type = visualization_msgs::Marker::SPHERE;
+  right_finger_point.action = visualization_msgs::Marker::ADD;
+  right_finger_point.scale.x = 0.01;
+  right_finger_point.scale.y = 0.01;
+  right_finger_point.scale.z = 0.01;
+  right_finger_point.color.a = 1.0; // Don't forget to set the alpha!
+  right_finger_point.color.r = 1.0;
+  right_finger_point.color.g = 1.0;
+  right_finger_point.color.b = 0.0;
+
   // Create ROS publisher for marker in rviz
   pubAngleAxisOpen = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisOpen", 0);
   pubAngleAxisApproach = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisApproach", 0);
   pubAngleAxisNormal = nh.advertise<visualization_msgs::Marker>("/pubAngleAxisNormal", 0);
-
+  pubRightFingerPoint = nh.advertise<visualization_msgs::Marker>("/pubRightFingerPoint", 0);
+  
   // Create ROS publisher for projected image
   image_transport::ImageTransport it(nh);
   pubProjectRGBImage = it.advertise("/projected_image/rgb", 1);
@@ -1112,9 +1366,30 @@ int main (int argc, char** argv)
 
   // Create ROS pointcloud publisher for the point cloud of gripped area
   pubGrabPointClouds = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds", 30);
+
+  pubGrabPointCloudsLeft = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds_Left", 30);
+
+  pubGrabPointCloudsRight = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds_Right", 30);
+
+  pubGrabPointCloudsLeftNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Left_Normal", 1);
+
+  pubGrabPointCloudsRightNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Right_Normal", 1);
+
+
+  pub_pose_left = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/left", 1);
+  
+  pub_pose_right = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/right", 1);
+
   
   // Create ROS pointcloud publisher for the number of grab point
   pubNumGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Grab_PointClouds", 30);
+
+  // Create ROS pointcloud publisher for the number of finger grab point
+  pubNumFingerGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Finger_Grab_PointClouds", 30);
+
+  pubLeftLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihoos/Left_Finger", 30);
+
+  pubRightLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihoos/Right_Finger", 30);
 
   // Create ROS pointcloud publisher for projected normal vector plane cloud
   pubProjectNormalVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
