@@ -555,11 +555,6 @@ class GraspEnv(py_environment.PyEnvironment):
         elif action ==18:
 
             self._rotate_grasp("stop")
-            self._episode_ended = True
-            self._step_counter = 0
-            print("stop!")
-
-            return ts.termination(self._state, self._reward)
         else:
 
             self._episode_ended = True

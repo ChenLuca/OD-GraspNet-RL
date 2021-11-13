@@ -124,9 +124,7 @@ def rgb_callback(image):
     global rgb_image
     try:
         rgb_image = rgb_bridge.imgmsg_to_cv2(image, "bgr8")
-        # cv2.namedWindow('rgb_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('rgb_image', rgb_image)
-        # cv2.waitKey(1)
+
     except CvBridgeError as e:
         print(e)
 
@@ -134,9 +132,7 @@ def depth_callback(image):
     global depth_image
     try:
         depth_image = depth_bridge.imgmsg_to_cv2(image)
-        # cv2.namedWindow('depth_image', cv2.WINDOW_NORMAL)
-        # cv2.imshow('depth_image', depth_image)
-        # cv2.waitKey(1)
+
     except CvBridgeError as e:
         print(e)
 
@@ -147,33 +143,19 @@ class GraspEnv(py_environment.PyEnvironment):
         self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=18, name="action")
 
         self.input_image_size = input_image_size
-        # self._observation_spec = {  "grab_normal" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
-        #                             "grab_approach" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255),
-        #                             "grab_open" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
-        #                             }
 
-        # self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-        #                 "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-        #                 "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
-        #                 }
-        
-        # self.grab_normal_rgb_image = np.zeros((0,0,3), np.float32)
-        # self.grab_approach_rgb_image = np.zeros((0,0,3), np.float32)
-        # self.grab_open_rgb_image = np.zeros((0,0,3), np.float32)
-
-        self._observation_spec = {  "depth_grab_normal" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 1), dtype = np.float32, minimum=0, maximum=255),
-                                    "depth_grab_approach" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 1), dtype = np.float32, minimum=0, maximum=255),
-                                    "depth_grab_open" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 1), dtype = np.float32, minimum=0, maximum=255)
+        self._observation_spec = {  "depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
                                     }
 
-        self._state = { "depth_grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 1), np.float32),
-                        "depth_grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 1), np.float32),
-                        "depth_grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 1), np.float32)
+        self._state = { "depth_grab" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
                         }
         
         self.grab_normal_depth_image = np.zeros((0,0,1), np.float32)
         self.grab_approach_depth_image = np.zeros((0,0,1), np.float32)
         self.grab_open_depth_image = np.zeros((0,0,1), np.float32)
+
+        self.grab_depth_image = np.zeros((0,0,3), np.float32)
+
 
         self._episode_ended = False
 
@@ -221,51 +203,37 @@ class GraspEnv(py_environment.PyEnvironment):
     
     def apporachLikelihood_callback(self, num):
         self.apporachLikelihood = num.data
-        # print("self.apporachLikelihood  ", self.apporachLikelihood)
 
     def pointLikelihoos_left_finger_callback(self, num):
         self.pointLikelihoos_left_finger = num.data
-        # print("self.pointLikelihoos_left_finger ", self.pointLikelihoos_left_finger)
 
     def pointLikelihoos_right_finger_callback(self, num):
         self.pointLikelihoos_right_finger = num.data
-        # print("self.pointLikelihoos_right_finger ", self.pointLikelihoos_right_finger)
 
     def finger_point_callback(self, num):
         self._number_of_finger_grab_pointClouds = num.data
-        # print("self._number_of_finger_grab_pointClouds ", self._number_of_finger_grab_pointClouds)
 
     def number_of_grab_pointClouds_callback(self, num):
         self._number_of_grab_pointClouds = num.data
-        # print("self.number_of_grab_pointClouds: ", self._number_of_grab_pointClouds)
 
     def grab_normal_rgb_callback(self, image):
         try:
             self.grab_normal_rgb_image = grab_normal_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
-            # cv2.namedWindow('grab_normal_rgb_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_normal_rgb_image', self.grab_normal_rgb_image)
-            # cv2.waitKey(1)
-            # cv2.imwrite("/home/luca-home-ubuntu20/code/RVP_GGCNN/grab_normal.jpg", self.grab_normal_rgb_image)
-            # print("self.grab_normal_rgb_image: ", self.grab_normal_rgb_image)
+
         except CvBridgeError as e:
             print(e)
 
     def grab_approach_rgb_callback(self, image):
         try:
             self.grab_approach_rgb_image = grab_approach_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
-            # cv2.namedWindow('grab_approach_rgb_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_approach_rgb_image', grab_approach_rgb_image)
-            # cv2.waitKey(1)
-            # print("self.grab_approach_rgb_image.shape ", self.grab_approach_rgb_image.shape)
+
         except CvBridgeError as e:
             print(e)
 
     def grab_open_rgb_callback(self, image):
         try:
             self.grab_open_rgb_image = grab_open_rgb_bridge.imgmsg_to_cv2(image, "bgr8").astype(np.float32)/255
-            # cv2.namedWindow('grab_open_rgb_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_open_rgb_image', grab_open_rgb_image)
-            # cv2.waitKey(1)
+
         except CvBridgeError as e:
             print(e)
 
@@ -280,10 +248,7 @@ class GraspEnv(py_environment.PyEnvironment):
     def grab_approach_depth_callback(self, image):
         try:
             self.grab_approach_depth_image = np.expand_dims(grab_approach_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis=-1)
-            # cv2.namedWindow('grab_approach_depth_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_approach_depth_image', self.grab_approach_depth_image)
-            # cv2.waitKey(1)
-            # print("self.grab_approach_depth_image.shape ", self.grab_approach_depth_image.shape)
+
         except CvBridgeError as e:
             print(e)
 
@@ -302,10 +267,7 @@ class GraspEnv(py_environment.PyEnvironment):
         return self._observation_spec
     
     def _reset(self):
-        # self._state = { "grab_normal" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-        #                 "grab_approach" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32),
-        #                 "grab_open" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
-        #                 }
+
         self._update_ROS_data()
         self._reward = 0 
         self._episode_ended = False
@@ -460,14 +422,9 @@ class GraspEnv(py_environment.PyEnvironment):
 
 
     def _update_ROS_data(self):
-        # self._state["grab_normal"] = self.grab_normal_rgb_image
-        # self._state["grab_approach"] = self.grab_approach_rgb_image
-        # self._state["grab_open"] = self.grab_open_rgb_image
 
-        self._state["depth_grab_normal"] = self.grab_normal_depth_image
-        self._state["depth_grab_approach"] = self.grab_approach_depth_image
-        self._state["depth_grab_open"] = self.grab_open_depth_image
-
+        self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        # print("self._state[depth_grab].shape", self._state["depth_grab"].shape)
 
     def _update_reward(self):
         self._reward = self._number_of_grab_pointClouds + 10*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
@@ -590,51 +547,36 @@ if __name__ == '__main__':
 
     rospy.init_node('Reinforcement_Learning_Trining', anonymous=True)
 
-    # Create ROS subscriber for gripper working area pointcloud
-    rospy.Subscriber("/Grab_PointClouds", PointCloud2, grab_pointClouds_callback, buff_size=52428800)
+    # # Create ROS subscriber for gripper working area pointcloud
+    # rospy.Subscriber("/Grab_PointClouds", PointCloud2, grab_pointClouds_callback, buff_size=52428800)
 
-    # Create ROS subscriber for mapping rgb image from Azure input pointcloud
-    rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
+    # # Create ROS subscriber for mapping rgb image from Azure input pointcloud
+    # rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
 
-    # Create ROS subscriber for mapping rgb image from Azure input pointcloud
-    rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+    # # Create ROS subscriber for mapping rgb image from Azure input pointcloud
+    # rospy.Subscriber("/projected_image/depth", Image, depth_callback)
 
     # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
     environment = GraspEnv([120, 160])
 
-    # env_utils.validate_py_environment(environment, episodes=5)
+    time.sleep(1)
+
+    env_utils.validate_py_environment(environment, episodes=5)
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    # conv must be modified!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # preprocessing_layers = {
-    # 'grab_normal': tf.keras.models.Sequential([ 
-    #     tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-    #                                             tf.keras.layers.Flatten()]),
-
-    # 'grab_approach': tf.keras.models.Sequential([ 
-    #     tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-    #                                             tf.keras.layers.Flatten()]),
-
-    # 'grab_open': tf.keras.models.Sequential([
-    #     tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-    #                                     tf.keras.layers.Flatten()]),    
-    #                                     }
     
     preprocessing_layers = {
-    'depth_grab_normal': tf.keras.models.Sequential([ 
-        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-                                                tf.keras.layers.Flatten()]),
-
-    'depth_grab_approach': tf.keras.models.Sequential([ 
-        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-                                                tf.keras.layers.Flatten()]),
-
-    'depth_grab_open': tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(filters=5, kernel_size=(3, 3)),
-                                        tf.keras.layers.Flatten()]),    
+    'depth_grab': tf.keras.models.Sequential([ 
+        tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Flatten()])
                                         }
 
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
@@ -644,9 +586,8 @@ if __name__ == '__main__':
                     tf_env.observation_spec(), 
                     tf_env.action_spec(), 
                     preprocessing_layers=preprocessing_layers,
-                    preprocessing_combiner=preprocessing_combiner, 
                     conv_layer_params=None, 
-                    fc_layer_params=(75, 25),
+                    fc_layer_params=(100, 100),
                     dropout_layer_params=None, 
                     activation_fn=tf.keras.activations.relu,
                     kernel_initializer=None, 
@@ -728,7 +669,6 @@ if __name__ == '__main__':
 
 
     while not rospy.is_shutdown():
-        # rotate_grasp()
 
         for _ in range(batch_size):
             collect_step(tf_env, agent.policy, replay_buffer)

@@ -65,7 +65,7 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNum
                pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud,
                pubRightFingerPoint,
                pub_pose_left, pub_pose_right,
-               pubLeftLikelihood, pubRightLikelihood;
+               pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -418,9 +418,9 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
 
       z = input_cloud->points[i].z;
       
-      if (z > 0.5 && z < 3.86)
+      if (z > 0.0 && z < 3.86)
       {
-        z = (z-0.5) / depth_interval;
+        z = (z) / depth_interval;
         Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
@@ -627,7 +627,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
   float d_1 = 0, d_2 = 0, d_3 = 0;
   float h_1 = 0.085/2, h_2 = 0.037/2, h_3 = 0.021/2, finger_length = 0.02;
-  float thr = 5;
+  float thr = 3;
   float right_finger_x = 0, right_finger_y = 0, right_finger_z = 0;
 
   open_vector(0) = cos(-1*angle);
@@ -660,7 +660,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
 
       point_x = PwPs[i].point.x;
       point_y = PwPs[i].point.y;
-      point_z = PwPs[i].point.z;
+      point_z = PwPs[i].point.z + h_2 ;
 
       new_point [0] = point_x;
       new_point [1] = point_y;
@@ -1059,8 +1059,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cout << "object_normal_left: " << object_normal_left.normal_x << ", " << object_normal_left.normal_y << ", " << object_normal_left.normal_z <<"\n\n";
     cout << "open vector: " << plane_coefficients_vector.open_vector(0) << ", " << plane_coefficients_vector.open_vector(1) << ", " << plane_coefficients_vector.open_vector(2) <<"\n\n";
 
-    //lower is better
-    float left_likelihood = abs(plane_coefficients_vector.open_vector(0) - object_normal_left.normal_x) + abs(plane_coefficients_vector.open_vector(1) - object_normal_left.normal_y) + abs(plane_coefficients_vector.open_vector(2) - object_normal_left.normal_z);
+    float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
     cout << "left_likelihood: " << left_likelihood << "\n\n";
 
 
@@ -1101,20 +1100,29 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     cout << "object_normal_right: " << object_normal_right.normal_x << ", " << object_normal_right.normal_y << ", " << object_normal_right.normal_z <<"\n\n";
 
-    //lower is better
-    float right_likelihood = abs(-1.0*plane_coefficients_vector.open_vector(0) - object_normal_right.normal_x) 
-                            + abs(-1.0*plane_coefficients_vector.open_vector(1) - object_normal_right.normal_y) 
-                            + abs(-1.0*plane_coefficients_vector.open_vector(2) - object_normal_right.normal_z);
+    float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
+                            + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
+                            + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
+
     cout << "right_likelihood: " << right_likelihood << "\n\n";
 
+    cout << "plane_coefficients_vector.approach_vector " << plane_coefficients_vector.approach_vector(0) << ", " << plane_coefficients_vector.approach_vector(1) << ", " << plane_coefficients_vector.approach_vector(2) << endl;
 
-    std_msgs::Float64 left_likelihood_msg, right_likelihood_msg;
+    // approach to (0, 0, 1) is better
+    float approach_likelihood =  plane_coefficients_vector.approach_vector(2);
+
+    cout << "approach_likelihood " << approach_likelihood << "\n";
+
+    std_msgs::Float64 left_likelihood_msg, right_likelihood_msg, approach_likelihood_msg;
 
     left_likelihood_msg.data = left_likelihood;
     right_likelihood_msg.data = right_likelihood;
+    approach_likelihood_msg.data = approach_likelihood;
     pubLeftLikelihood.publish(left_likelihood_msg);
     pubRightLikelihood.publish(right_likelihood_msg);
 
+    //!!!!!!!!!!!!!!!!!
+    pubApproachLikelihood.publish(approach_likelihood_msg);
     //====================================================================
 
     //=== publish plane pointcloud and grab pointcloud === [end]
@@ -1124,7 +1132,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     Grab_Cloud_viewpoint_Translation[0] = -grasp_3D[0];
     Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
-    Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.1;
+    Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.025;
 
     Grab_Cloud_viewpoint_Rotation[0] = 0;
     Grab_Cloud_viewpoint_Rotation[1] = 0;
@@ -1172,7 +1180,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
                             Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Normal_PwPs,
                             Mapping_width/2, Mapping_high/2, 300, 300);
 
-    cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(14, 14));  
+    cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(40, 40));  
     
     cv::dilate(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, Grab_element);
     cv::dilate(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, Grab_element); // <===應該是平的！！！
@@ -1184,8 +1192,9 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); // <===應該是平的！！！
     //=== Project Image === [end]
 
-    cv::Size cv_downsize = cv::Size(320, 240);
-    
+    // cv::Size cv_downsize = cv::Size(320, 240);
+    cv::Size cv_downsize = cv::Size(160, 120);
+
     cv::resize(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, cv_downsize, cv::INTER_AREA);
     cv::resize(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, cv_downsize, cv::INTER_AREA);
     cv::resize(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, cv_downsize, cv::INTER_AREA);
@@ -1387,9 +1396,11 @@ int main (int argc, char** argv)
   // Create ROS pointcloud publisher for the number of finger grab point
   pubNumFingerGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Finger_Grab_PointClouds", 30);
 
-  pubLeftLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihoos/Left_Finger", 30);
+  pubLeftLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Left_Finger", 30);
 
-  pubRightLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihoos/Right_Finger", 30);
+  pubRightLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Right_Finger", 30);
+
+  pubApproachLikelihood = nh.advertise<std_msgs::Float64> ("/ApporachLikelihood", 30);
 
   // Create ROS pointcloud publisher for projected normal vector plane cloud
   pubProjectNormalVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);

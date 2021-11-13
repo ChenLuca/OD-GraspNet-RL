@@ -1,0 +1,348 @@
+step = 200: loss = 8772255744.0
+step = 400: loss = 342739264.0
+step = 600: loss = 305366720.0
+step = 800: loss = 129718312.0
+step = 1000: loss = 57266536.0
+step = 1000: Average Return = 2050.037353515625
+step = 1200: loss = 38577332.0
+step = 1400: loss = 30110136.0
+step = 1600: loss = 27140720.0
+step = 1800: loss = 15745300.0
+step = 2000: loss = 14274730.0
+step = 2000: Average Return = 1858.273681640625
+step = 2200: loss = 7771541.0
+step = 2400: loss = 5216467.5
+step = 2600: loss = 4258491.0
+step = 2800: loss = 1346749.25
+step = 3000: loss = 991565.125
+step = 3000: Average Return = 2000.692138671875
+step = 3200: loss = 663158.625
+step = 3400: loss = 1310548.875
+step = 3600: loss = 735750.5
+step = 3800: loss = 512730.875
+step = 4000: loss = 1143401.25
+step = 4000: Average Return = 1964.7025146484375
+step = 4200: loss = 374072.25
+step = 4400: loss = 626444.5625
+step = 4600: loss = 508909.65625
+step = 4800: loss = 225692.765625
+step = 5000: loss = 471662.46875
+step = 5000: Average Return = 1956.5302734375
+step = 5200: loss = 7933355.5
+step = 5400: loss = 438306.03125
+step = 5600: loss = 3669809.5
+step = 5800: loss = 678466.875
+step = 6000: loss = 453344.84375
+step = 6000: Average Return = 1756.184814453125
+step = 6200: loss = 675299.125
+step = 6400: loss = 841697.125
+step = 6600: loss = 410223.125
+step = 6800: loss = 604891.5
+step = 7000: loss = 486135.9375
+step = 7000: Average Return = 1998.26171875
+step = 7200: loss = 1269300.125
+step = 7400: loss = 1436480.75
+step = 7600: loss = 3024782.25
+step = 7800: loss = 331001280.0
+step = 8000: loss = 21965448.0
+step = 8000: Average Return = 1985.119384765625
+step = 8200: loss = 11848190.0
+step = 8400: loss = 8183675.0
+step = 8600: loss = 3388829.0
+step = 8800: loss = 1730795.75
+step = 9000: loss = 2882111.75
+step = 9000: Average Return = 1603.2724609375
+step = 9200: loss = 2195524.0
+step = 9400: loss = 2311955.25
+step = 9600: loss = 2519561.75
+step = 9800: loss = 2095796.125
+step = 10000: loss = 1123926.5
+step = 10000: Average Return = 1618.6015625
+step = 10200: loss = 781930.25
+step = 10400: loss = 693302.5
+step = 10600: loss = 355693.6875
+step = 10800: loss = 629312.5
+step = 11000: loss = 282271.25
+step = 11000: Average Return = 1728.6109619140625
+step = 11200: loss = 523805.6875
+step = 11400: loss = 196614.828125
+step = 11600: loss = 295352.78125
+step = 11800: loss = 413997.5
+step = 12000: loss = 209758.84375
+step = 12000: Average Return = 2105.3037109375
+step = 12200: loss = 92972.5078125
+step = 12400: loss = 582475.75
+step = 12600: loss = 554833.25
+step = 12800: loss = 421940.84375
+step = 13000: loss = 500540.25
+step = 13000: Average Return = 1755.0361328125
+step = 13200: loss = 478253.3125
+step = 13400: loss = 555884.125
+step = 13600: loss = 821714.9375
+step = 13800: loss = 4802824.5
+step = 14000: loss = 118319759360.0
+step = 14000: Average Return = 1854.9019775390625
+step = 14200: loss = 16745316352.0
+step = 14400: loss = 5518158848.0
+step = 14600: loss = 4718518272.0
+step = 14800: loss = 1611128448.0
+step = 15000: loss = 2100841728.0
+step = 15000: Average Return = 1922.0
+step = 15200: loss = 431534464.0
+step = 15400: loss = 167256896.0
+step = 15600: loss = 195823904.0
+step = 15800: loss = 33273616.0
+step = 16000: loss = 9425813.0
+step = 16000: Average Return = 1688.4322509765625
+step = 16200: loss = 8995574.0
+step = 16400: loss = 2444068.5
+step = 16600: loss = 3046545.5
+step = 16800: loss = 3208152.0
+step = 17000: loss = 9492208.0
+step = 17000: Average Return = 1941.568603515625
+step = 17200: loss = 1588121.125
+step = 17400: loss = 3003993.0
+step = 17600: loss = 1777166.25
+step = 17800: loss = 4796136.0
+step = 18000: loss = 1856815.25
+step = 18000: Average Return = 1682.2943115234375
+step = 18200: loss = 2343469.0
+step = 18400: loss = 1074349.5
+step = 18600: loss = 2527878.75
+step = 18800: loss = 1578672.75
+step = 19000: loss = 772729.125
+step = 19000: Average Return = 1716.6820068359375
+step = 19200: loss = 3323002.75
+step = 19400: loss = 1739869.875
+step = 19600: loss = 1255891.5
+step = 19800: loss = 2156189.5
+step = 20000: loss = 924998.5
+step = 20000: Average Return = 1872.8590087890625
+step = 20200: loss = 1255796.25
+step = 20400: loss = 862714.9375
+step = 20600: loss = 669407.5625
+step = 20800: loss = 524658.875
+step = 21000: loss = 1373180.125
+step = 21000: Average Return = 2027.5582275390625
+step = 21200: loss = 495001.65625
+step = 21400: loss = 1129611.25
+step = 21600: loss = 1177335.5
+step = 21800: loss = 563056.9375
+step = 22000: loss = 478367.5
+step = 22000: Average Return = 2058.97802734375
+step = 22200: loss = 1429085.625
+step = 22400: loss = 1186764.75
+step = 22600: loss = 1210922.25
+step = 22800: loss = 1002404.375
+step = 23000: loss = 713985.75
+step = 23000: Average Return = 1990.323974609375
+step = 23200: loss = 843727.625
+step = 23400: loss = 451541.5625
+step = 23600: loss = 928532.5
+step = 23800: loss = 349491.9375
+step = 24000: loss = 935708.625
+step = 24000: Average Return = 1980.950439453125
+step = 24200: loss = 225402.984375
+step = 24400: loss = 519213.3125
+step = 24600: loss = 883866.0
+step = 24800: loss = 1306042.75
+step = 25000: loss = 638417.0625
+step = 25000: Average Return = 2017.5875244140625
+step = 25200: loss = 444776.1875
+step = 25400: loss = 546038.25
+step = 25600: loss = 590235.5
+step = 25800: loss = 560651.1875
+step = 26000: loss = 1776666.25
+step = 26000: Average Return = 1750.8052978515625
+step = 26200: loss = 830409.625
+step = 26400: loss = 298931.6875
+step = 26600: loss = 298227.3125
+step = 26800: loss = 83616.59375
+step = 27000: loss = 331515.9375
+step = 27000: Average Return = 2064.70947265625
+step = 27200: loss = 558792.1875
+step = 27400: loss = 253635.234375
+step = 27600: loss = 409660.53125
+step = 27800: loss = 509301.71875
+step = 28000: loss = 387264.125
+step = 28000: Average Return = 1603.255615234375
+step = 28200: loss = 381705.84375
+step = 28400: loss = 819209.3125
+step = 28600: loss = 875420.875
+step = 28800: loss = 521008.5
+step = 29000: loss = 350093.5625
+step = 29000: Average Return = 1913.6507568359375
+step = 29200: loss = 336236.40625
+step = 29400: loss = 1441452.75
+step = 29600: loss = 577075.0
+step = 29800: loss = 786593.0
+step = 30000: loss = 1933012.0
+step = 30000: Average Return = 1830.170654296875
+step = 30200: loss = 979792.125
+step = 30400: loss = 474781.375
+step = 30600: loss = 307271.625
+step = 30800: loss = 828941.875
+step = 31000: loss = 390341.9375
+step = 31000: Average Return = 1816.150634765625
+step = 31200: loss = 519350.0625
+step = 31400: loss = 416431.34375
+step = 31600: loss = 1340968.5
+step = 31800: loss = 801521.3125
+step = 32000: loss = 1526875.5
+step = 32000: Average Return = 2086.977783203125
+step = 32200: loss = 840167.75
+step = 32400: loss = 1291798.0
+step = 32600: loss = 980446.125
+step = 32800: loss = 2969088.75
+step = 33000: loss = 677409.4375
+step = 33000: Average Return = 1999.5120849609375
+step = 33200: loss = 230396.84375
+step = 33400: loss = 306393.0
+step = 33600: loss = 280508.0
+step = 33800: loss = 1376810.875
+step = 34000: loss = 320522.53125
+step = 34000: Average Return = 1834.3978271484375
+step = 34200: loss = 893883.0
+step = 34400: loss = 220347.28125
+step = 34600: loss = 833528.75
+step = 34800: loss = 304709.78125
+step = 35000: loss = 555576.625
+step = 35000: Average Return = 1912.782470703125
+step = 35200: loss = 974048.625
+step = 35400: loss = 1240937.0
+step = 35600: loss = 506787.9375
+step = 35800: loss = 202896.09375
+step = 36000: loss = 196014.34375
+step = 36000: Average Return = 2088.28564453125
+step = 36200: loss = 300946.59375
+step = 36400: loss = 187676.890625
+step = 36600: loss = 307710.3125
+step = 36800: loss = 72044928.0
+step = 37000: loss = 20670492.0
+step = 37000: Average Return = 1920.9771728515625
+step = 37200: loss = 2556486.5
+step = 37400: loss = 853405.6875
+step = 37600: loss = 300667.96875
+step = 37800: loss = 276899.28125
+step = 38000: loss = 88625.859375
+step = 38000: Average Return = 1696.4046630859375
+step = 38200: loss = 58493.19921875
+step = 38400: loss = 10974.3046875
+step = 38600: loss = 16048.0458984375
+step = 38800: loss = 9730.390625
+step = 39000: loss = 3556.114501953125
+step = 39000: Average Return = 1664.0166015625
+step = 39200: loss = 4747.43896484375
+step = 39400: loss = 3662.109375
+step = 39600: loss = 3099.395751953125
+step = 39800: loss = 3299.608642578125
+step = 40000: loss = 3150.208251953125
+step = 40000: Average Return = 1687.896484375
+step = 40200: loss = 3247.776123046875
+step = 40400: loss = 3421.68017578125
+step = 40600: loss = 3397.060302734375
+step = 40800: loss = 3115.07177734375
+step = 41000: loss = 3250.453125
+step = 41000: Average Return = 1597.477294921875
+step = 41200: loss = 3274.91943359375
+step = 41400: loss = 3259.7783203125
+step = 41600: loss = 3220.55615234375
+step = 41800: loss = 3287.648193359375
+step = 42000: loss = 3277.24462890625
+step = 42000: Average Return = 1647.8681640625
+step = 42200: loss = 3418.470947265625
+step = 42400: loss = 3278.2412109375
+step = 42600: loss = 3767.03125
+step = 42800: loss = 3246.974365234375
+step = 43000: loss = 3197.4384765625
+step = 43000: Average Return = 1647.3695068359375
+step = 43200: loss = 3679.94921875
+step = 43400: loss = 3416.708740234375
+step = 43600: loss = 3431.2744140625
+step = 43800: loss = 298137.25
+step = 44000: loss = 3149257.25
+step = 44000: Average Return = 2044.4156494140625
+step = 44200: loss = 10067210.0
+step = 44400: loss = 2653516.25
+step = 44600: loss = 745449.625
+step = 44800: loss = 403456.84375
+step = 45000: loss = 268266.53125
+step = 45000: Average Return = 1648.369140625
+step = 45200: loss = 312491.6875
+step = 45400: loss = 58088.2109375
+step = 45600: loss = 82461.15625
+step = 45800: loss = 233312.71875
+step = 46000: loss = 172937.5625
+step = 46000: Average Return = 1590.43701171875
+step = 46200: loss = 158297.21875
+step = 46400: loss = 157027.171875
+step = 46600: loss = 174750.921875
+step = 46800: loss = 166408.3125
+step = 47000: loss = 109919.0078125
+step = 47000: Average Return = 1589.5048828125
+step = 47200: loss = 61239.84765625
+step = 47400: loss = 123529.9140625
+step = 47600: loss = 228769.125
+step = 47800: loss = 236557.984375
+step = 48000: loss = 163546.46875
+step = 48000: Average Return = 1985.800048828125
+step = 48200: loss = 281365.65625
+step = 48400: loss = 510677.03125
+step = 48600: loss = 315082.9375
+step = 48800: loss = 138668.375
+step = 49000: loss = 199040.84375
+step = 49000: Average Return = 2021.815673828125
+step = 49200: loss = 179613.15625
+step = 49400: loss = 252779.1875
+step = 49600: loss = 204653.1875
+step = 49800: loss = 524661.9375
+step = 50000: loss = 343624.75
+step = 50000: Average Return = 1618.552001953125
+step = 50200: loss = 175720.25
+step = 50400: loss = 159996.40625
+step = 50600: loss = 394419.8125
+step = 50800: loss = 517902.75
+step = 51000: loss = 486331.375
+step = 51000: Average Return = 2098.39453125
+step = 51200: loss = 662607.875
+step = 51400: loss = 310946.1875
+step = 51600: loss = 178510.6875
+step = 51800: loss = 624885.9375
+step = 52000: loss = 462067.3125
+step = 52000: Average Return = 2196.31298828125
+step = 52200: loss = 265927.625
+step = 52400: loss = 260566.3125
+step = 52600: loss = 147267.0
+step = 52800: loss = 226649.953125
+step = 53000: loss = 51259.94921875
+step = 53000: Average Return = 1729.3785400390625
+step = 53200: loss = 467952.03125
+step = 53400: loss = 142338.59375
+step = 53600: loss = 102253.984375
+step = 53800: loss = 116507.3984375
+step = 54000: loss = 64855.79296875
+step = 54000: Average Return = 1792.253173828125
+step = 54200: loss = 322796.125
+step = 54400: loss = 214485.421875
+step = 54600: loss = 516841.03125
+step = 54800: loss = 834471.625
+step = 55000: loss = 255212.625
+step = 55000: Average Return = 1789.4205322265625
+step = 55200: loss = 451981.9375
+step = 55400: loss = 430867.59375
+step = 55600: loss = 264791.4375
+step = 55800: loss = 718265.75
+step = 56000: loss = 448937.125
+step = 56000: Average Return = 2207.73974609375
+step = 56200: loss = 268165.6875
+step = 56400: loss = 95588.234375
+step = 56600: loss = 137229.625
+step = 56800: loss = 118434.1640625
+step = 57000: loss = 221764.84375
+step = 57000: Average Return = 2021.899169921875
+step = 57200: loss = 237368.03125
+step = 57400: loss = 259501.0
+step = 57600: loss = 176816.46875
+step = 57800: loss = 570343.0
+step = 58000: loss = 356512.4375
+step = 58000: Average Return = 2088.618896484375
