@@ -430,7 +430,7 @@ class GraspEnv(py_environment.PyEnvironment):
         self._reward = 10*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
 
     def _step(self, action):
-        time.sleep(0.04)
+        time.sleep(0.012)
         self._update_ROS_data()
         self._update_reward()
 
@@ -516,7 +516,6 @@ class GraspEnv(py_environment.PyEnvironment):
             self._step_counter = 0
             print("stop!")
 
-            return ts.termination(self._state, self._reward)
         else:
 
             self._episode_ended = True

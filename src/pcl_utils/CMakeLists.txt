@@ -67,6 +67,7 @@ add_message_files(
 add_service_files(
   FILES
   snapshot.srv
+  setPointCloud.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -223,10 +224,17 @@ add_executable(pcl_server src/pcl_server.cpp)
 target_link_libraries(pcl_server ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
 add_dependencies(pcl_server ${catkin_EXPORTED_TARGETS})
 
+add_executable(pcl_service src/pcl_service.cpp)
+target_link_libraries(pcl_service ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+add_dependencies(pcl_service ${catkin_EXPORTED_TARGETS})
+
 add_executable(get_cornell_data src/get_cornell_data.cpp)
 target_link_libraries(get_cornell_data ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 add_dependencies(get_cornell_data ${catkin_EXPORTED_TARGETS})
 
+add_executable(set_Input_PointCloud src/set_Input_PointCloud.cpp)
+target_link_libraries(set_Input_PointCloud ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+add_dependencies(set_Input_PointCloud ${catkin_EXPORTED_TARGETS})
 # endif()
 
 ## Add folders to be run by python nosetests
