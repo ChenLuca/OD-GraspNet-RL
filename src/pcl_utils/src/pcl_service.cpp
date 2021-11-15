@@ -424,15 +424,96 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
       Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[2] = (int)input_cloud->points[i].r;
 
       z = input_cloud->points[i].z;
-      
       if (z > 0.0 && z < 3.86)
       {
-        z = (z) / depth_interval;
+      z = (z) / depth_interval;
+      Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
+      }
+    }
+  }
+}
+
+
+void do_PerspectiveProjection_2(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, cv::Mat &Mapping_RGB_Image, 
+                              cv::Mat &Mapping_Depth_Image, float *viewpoint_Translation, float *viewpoint_Rotation,
+                              std::vector<Point_with_Pixel> &PwPs, float intrinsic_fx, float intrinsic_fy, float intrinsic_cx, float intrinsic_cy)
+{
+  //Extrinsics parameters
+  Eigen::Matrix4d cam1_H_world = Eigen::Matrix4d::Identity();
+  
+  intrinsic_parameters.at<float> (0, 0) = intrinsic_fx;
+  intrinsic_parameters.at<float> (0, 1) = 0.0;
+  intrinsic_parameters.at<float> (0, 2) = intrinsic_cx;
+  intrinsic_parameters.at<float> (1, 0) = 0.0;
+  intrinsic_parameters.at<float> (1, 1) = intrinsic_fy;
+  intrinsic_parameters.at<float> (1, 2) = intrinsic_cy;
+  intrinsic_parameters.at<float> (2, 0) = 0.0;
+  intrinsic_parameters.at<float> (2, 1) = 0.0;
+  intrinsic_parameters.at<float> (2, 2) = 1.0;
+
+  //k1,k2,p1,p2,k3
+  distortion_coefficient.at<float> (0) = 0.0;
+  distortion_coefficient.at<float> (1) = 0.0;
+  distortion_coefficient.at<float> (2) = 0.0;
+  distortion_coefficient.at<float> (3) = 0.0;
+  distortion_coefficient.at<float> (4) = 0.0;
+
+
+  // Define a rotation matrix (see https://en.wikipedia.org/wiki/Rotation_matrix)
+  Eigen::Matrix4d viewpoint_transform = Eigen::Matrix4d::Identity();
+
+  do_ViewpointTrasform(viewpoint_transform, viewpoint_Translation, viewpoint_Rotation);
+  
+  cam1_H_world = viewpoint_transform;
+
+  // Read 3D points: cloud-> vector
+	std::vector<cv::Point3f> cloudPoints;
+	CloudToVector(input_cloud, cloudPoints);
+  
+	cv::Vec3d cam1_H_world_rvec, cam1_H_world_tvec;
+	Matrix4dToRodriguesTranslation(cam1_H_world, cam1_H_world_rvec, cam1_H_world_tvec);
+
+	// Perspective Projection of Cloud Points to Image Plane
+	std::vector<cv::Point2f> imagePoints;
+	cv::projectPoints(cloudPoints, cam1_H_world_rvec, cam1_H_world_tvec, intrinsic_parameters, distortion_coefficient, imagePoints);
+
+  Point_with_Pixel PwP;
+
+  if (input_cloud->size()!= 0)
+  {
+    float depth_interval = 0.013176470588235293;
+    float z = 0.0;
+    int idxX = 0, idxY = 0;
+
+    for (unsigned int i = 0; i < imagePoints.size(); ++i) 
+    {
+      idxX = round(imagePoints[i].x);
+      idxY = round(imagePoints[i].y);
+
+      if (idxX < 0 || idxY < 0 || idxX >= Mapping_width || idxY >= Mapping_high)
+      {
+        continue;
+      }
+
+      PwP.point = cloudPoints[i];
+      PwP.pixel.x = idxX;
+      PwP.pixel.y = idxY;
+      PwPs.push_back(PwP);
+
+      Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[0] = (int)input_cloud->points[i].b;
+      Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[1] = (int)input_cloud->points[i].g;
+      Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[2] = (int)input_cloud->points[i].r;
+
+      z = input_cloud->points[i].z;
+      if (z > 0.0 && z < 0.1)
+      {
+        z = 255 - z/0.1*255;
         Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
   }
 }
+
 
 Eigen::Vector4f do_ComputeLocation(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_cloud)
 {
@@ -474,6 +555,32 @@ void do_Rotate(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
   pcl::transformPointCloud (*output_cloud, *output_cloud, transform_rotate);
 
   transform_trans.translation() << pca_location[0], pca_location[1], pca_location[2];
+
+  pcl::transformPointCloud (*output_cloud, *output_cloud, transform_trans);
+}
+
+void do_Rotate_2(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, 
+               pcl::PointCloud<pcl::PointXYZRGB>::Ptr &output_cloud,
+               Eigen::Vector4f pca_location,
+               float *Rotate_angle,
+               float z_dist)
+{
+  Eigen::Affine3f transform_trans = Eigen::Affine3f::Identity();
+  Eigen::Affine3f transform_rotate = Eigen::Affine3f::Identity();
+
+  // Define a translation .
+  transform_trans.translation() << -1*pca_location[0], -1*pca_location[1], -1*pca_location[2];
+
+  // The same rotation matrix as before; theta radians around Z axis
+  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[0], Eigen::Vector3f::UnitX()));
+  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[1], Eigen::Vector3f::UnitY()));
+  transform_rotate.rotate (Eigen::AngleAxisf (Rotate_angle[2], Eigen::Vector3f::UnitZ()));
+
+  // Apply an affine transform defined by an Eigen Transform.
+  pcl::transformPointCloud (*input_cloud, *output_cloud, transform_trans);
+  pcl::transformPointCloud (*output_cloud, *output_cloud, transform_rotate);
+
+  transform_trans.translation() << 0, 0, z_dist;
 
   pcl::transformPointCloud (*output_cloud, *output_cloud, transform_trans);
 }
@@ -939,28 +1046,29 @@ void do_PointcloudProcess()
       //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
       // ax + by + cy + d = 0
       // plane_coefficients = a, b, c, d
-      float *normal_vector_plane_coefficients = new float[4];
-      float *approach_vector_plane_coefficients = new float[4];
-      float *open_vector_plane_coefficients = new float[4];
+      // float *normal_vector_plane_coefficients = new float[4];
+      // float *approach_vector_plane_coefficients = new float[4];
+      // float *open_vector_plane_coefficients = new float[4];
 
-      normal_vector_plane_coefficients[0] = plane_coefficients_vector.normal_vector(0);
-      normal_vector_plane_coefficients[1] = plane_coefficients_vector.normal_vector(1);
-      normal_vector_plane_coefficients[2] = plane_coefficients_vector.normal_vector(2);
-      normal_vector_plane_coefficients[3] = -1*plane_coefficients_vector.normal_vector(3);
+      // normal_vector_plane_coefficients[0] = plane_coefficients_vector.normal_vector(0);
+      // normal_vector_plane_coefficients[1] = plane_coefficients_vector.normal_vector(1);
+      // normal_vector_plane_coefficients[2] = plane_coefficients_vector.normal_vector(2);
+      // normal_vector_plane_coefficients[3] = -1*plane_coefficients_vector.normal_vector(3);
 
-      approach_vector_plane_coefficients[0] = plane_coefficients_vector.approach_vector(0);
-      approach_vector_plane_coefficients[1] = plane_coefficients_vector.approach_vector(1);
-      approach_vector_plane_coefficients[2] = plane_coefficients_vector.approach_vector(2);
-      approach_vector_plane_coefficients[3] = -1*plane_coefficients_vector.approach_vector(3);
+      // approach_vector_plane_coefficients[0] = plane_coefficients_vector.approach_vector(0);
+      // approach_vector_plane_coefficients[1] = plane_coefficients_vector.approach_vector(1);
+      // approach_vector_plane_coefficients[2] = plane_coefficients_vector.approach_vector(2);
+      // approach_vector_plane_coefficients[3] = -1*plane_coefficients_vector.approach_vector(3);
 
-      open_vector_plane_coefficients[0] = plane_coefficients_vector.open_vector(0);
-      open_vector_plane_coefficients[1] = plane_coefficients_vector.open_vector(1);
-      open_vector_plane_coefficients[2] = plane_coefficients_vector.open_vector(2);
-      open_vector_plane_coefficients[3] = -1*plane_coefficients_vector.open_vector(3);
+      // open_vector_plane_coefficients[0] = plane_coefficients_vector.open_vector(0);
+      // open_vector_plane_coefficients[1] = plane_coefficients_vector.open_vector(1);
+      // open_vector_plane_coefficients[2] = plane_coefficients_vector.open_vector(2);
+      // open_vector_plane_coefficients[3] = -1*plane_coefficients_vector.open_vector(3);
 
-      do_Project_using_parametric_model(grab_cloud, project_normal_vector_plane_cloud, normal_vector_plane_coefficients);
-      do_Project_using_parametric_model(grab_cloud, project_approach_vector_plane_cloud, approach_vector_plane_coefficients);
-      do_Project_using_parametric_model(grab_cloud, project_open_vector_plane_cloud, open_vector_plane_coefficients);
+      // do_Project_using_parametric_model(grab_cloud, project_normal_vector_plane_cloud, normal_vector_plane_coefficients);
+      // do_Project_using_parametric_model(grab_cloud, project_approach_vector_plane_cloud, approach_vector_plane_coefficients);
+      // do_Project_using_parametric_model(grab_cloud, project_open_vector_plane_cloud, open_vector_plane_coefficients);
+
       //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
 
       float *Rotate_angle = new float[3];
@@ -975,36 +1083,44 @@ void do_PointcloudProcess()
       grasp_point(1) = grasp_3D[1];
       grasp_point(2) = grasp_3D[2];
 
+      float z_dist = 0.05;
       //rotate point Cloud
-      do_Rotate(project_normal_vector_plane_cloud, 
-                retransform_normal_vector_plane_cloud, 
-                grasp_point, 
-                Rotate_angle);
-
-      //rotate point Cloud
-      do_Rotate(project_approach_vector_plane_cloud, 
+      do_Rotate_2(grab_cloud, 
                 retransform_approach_vector_plane_cloud, 
                 grasp_point, 
-                Rotate_angle);
+                Rotate_angle,
+                z_dist);
+
+      Rotate_angle[0] = Rotate_angle[0]+M_PI/2;  //X axis
 
       //rotate point Cloud
-      do_Rotate(project_open_vector_plane_cloud, 
+      do_Rotate_2(grab_cloud, 
+                retransform_normal_vector_plane_cloud, 
+                grasp_point, 
+                Rotate_angle,
+                z_dist);
+
+      Rotate_angle[0] = Rotate_angle[0]-M_PI/2;  //X axis
+      Rotate_angle[1] = Rotate_angle[1]-M_PI/2;
+      //rotate point Cloud
+      do_Rotate_2(grab_cloud, 
                 retransform_open_vector_plane_cloud, 
                 grasp_point, 
-                Rotate_angle);
+                Rotate_angle,
+                z_dist);
 
       //=== publish plane pointcloud and grab pointcloud === [begin]
-      pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
-      project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
-      pubProjectNormalVectorPlaneCloud.publish(project_normal_vector_plane_output);
+      // pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
+      // project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
+      // pubProjectNormalVectorPlaneCloud.publish(project_normal_vector_plane_output);
 
-      pcl::toROSMsg(*project_approach_vector_plane_cloud, project_approach_vector_plane_output);
-      project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
-      pubProjectApproachVectorPlaneCloud.publish(project_approach_vector_plane_output);
+      // pcl::toROSMsg(*project_approach_vector_plane_cloud, project_approach_vector_plane_output);
+      // project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
+      // pubProjectApproachVectorPlaneCloud.publish(project_approach_vector_plane_output);
 
-      pcl::toROSMsg(*project_open_vector_plane_cloud, project_open_vector_plane_output);
-      project_open_vector_plane_output.header.frame_id = "depth_camera_link";
-      pubProjectOpenVectorPlaneCloud.publish(project_open_vector_plane_output);
+      // pcl::toROSMsg(*project_open_vector_plane_cloud, project_open_vector_plane_output);
+      // project_open_vector_plane_output.header.frame_id = "depth_camera_link";
+      // pubProjectOpenVectorPlaneCloud.publish(project_open_vector_plane_output);
 
       pcl::toROSMsg(*retransform_normal_vector_plane_cloud, retransform_project_normal_vector_plane_output);
       retransform_project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
@@ -1030,17 +1146,14 @@ void do_PointcloudProcess()
       grab_output_right.header.frame_id = "depth_camera_link";
       pubGrabPointCloudsRight.publish(grab_output_right);
 
-
       pcl::PointCloud<pcl::PointNormal>::Ptr left_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
       do_calculate_normal(grab_cloud_left, left_cloud_normal);
       pcl_utils::coordinate_normal object_normal_left;
       object_normal_left = average_normal(grab_cloud_left, left_cloud_normal);
-
       pubGrabPointCloudsLeftNormal.publish(object_normal_left);
 
       geometry_msgs::PoseStamped object_pose_left;
 
-      // object_pose_left.header.frame_id = "base_link";
       object_pose_left.header.frame_id = "depth_camera_link";
       object_pose_left.header.stamp = ros::Time::now();;
       object_pose_left.header.seq = 1;
@@ -1064,13 +1177,7 @@ void do_PointcloudProcess()
 
       pub_pose_left.publish (object_pose_left);
 
-
-      // cout << "object_normal_left: " << object_normal_left.normal_x << ", " << object_normal_left.normal_y << ", " << object_normal_left.normal_z <<"\n\n";
-      // cout << "open vector: " << plane_coefficients_vector.open_vector(0) << ", " << plane_coefficients_vector.open_vector(1) << ", " << plane_coefficients_vector.open_vector(2) <<"\n\n";
-
       float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
-      // cout << "left_likelihood: " << left_likelihood << "\n\n";
-
 
       //right finger====================================================================
       pcl::PointCloud<pcl::PointNormal>::Ptr right_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
@@ -1082,7 +1189,6 @@ void do_PointcloudProcess()
 
       geometry_msgs::PoseStamped object_pose_right;
 
-      // object_pose_right.header.frame_id = "base_link";
       object_pose_right.header.frame_id = "depth_camera_link";
       object_pose_right.header.stamp = ros::Time::now();;
       object_pose_right.header.seq = 1;
@@ -1106,17 +1212,11 @@ void do_PointcloudProcess()
       
       pub_pose_right.publish (object_pose_right);
 
-
-      // cout << "object_normal_right: " << object_normal_right.normal_x << ", " << object_normal_right.normal_y << ", " << object_normal_right.normal_z <<"\n\n";
-
       float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
                               + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
                               + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
 
-      // cout << "right_likelihood: " << right_likelihood << "\n\n";
-
-      // cout << "plane_coefficients_vector.approach_vector " << plane_coefficients_vector.approach_vector(0) << ", " << plane_coefficients_vector.approach_vector(1) << ", " << plane_coefficients_vector.approach_vector(2) << endl;
-
+     
       // approach to (0, 0, 1) is better
       float approach_likelihood =  plane_coefficients_vector.approach_vector(2);
 
@@ -1139,9 +1239,9 @@ void do_PointcloudProcess()
       //=== Project plane Image === [begin]
       std::vector<Point_with_Pixel> Grab_Cloud_Approach_PwPs, Grab_Cloud_Normal_PwPs, Grab_Cloud_Open_PwPs;
 
-      Grab_Cloud_viewpoint_Translation[0] = -grasp_3D[0];
-      Grab_Cloud_viewpoint_Translation[1] = -grasp_3D[1];
-      Grab_Cloud_viewpoint_Translation[2] = -grasp_3D[2] + 0.03;
+      Grab_Cloud_viewpoint_Translation[0] = 0.0;
+      Grab_Cloud_viewpoint_Translation[1] = 0.0;
+      Grab_Cloud_viewpoint_Translation[2] = 0.0;
 
       Grab_Cloud_viewpoint_Rotation[0] = 0;
       Grab_Cloud_viewpoint_Rotation[1] = 0;
@@ -1154,52 +1254,51 @@ void do_PointcloudProcess()
       Grab_Cloud_Open_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
       Grab_Cloud_Open_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
 
-      float *Rotate_Normal_Angle = new float[3];
-      float *Rotate_Open_Angle = new float[3];
+      // float *Rotate_Normal_Angle = new float[3];
+      // float *Rotate_Open_Angle = new float[3];
 
-      Rotate_Normal_Angle[0] = M_PI/2;  //X axis
-      Rotate_Normal_Angle[1] = 0;  //Y axis
-      Rotate_Normal_Angle[2] = 0;  //Z axis
+      // Rotate_Normal_Angle[0] = M_PI/2;  //X axis
+      // Rotate_Normal_Angle[1] = 0;  //Y axis
+      // Rotate_Normal_Angle[2] = 0;  //Z axis
 
-      Rotate_Open_Angle[0] = M_PI/2;  //X axis
-      Rotate_Open_Angle[1] = 0;  //Y axis
-      Rotate_Open_Angle[2] = M_PI/2;  //Z axis
+      // Rotate_Open_Angle[0] = M_PI/2;  //X axis
+      // Rotate_Open_Angle[1] = 0;  //Y axis
+      // Rotate_Open_Angle[2] = M_PI/2;  //Z axis
 
-        //rotate point Cloud
-      do_Rotate(retransform_normal_vector_plane_cloud, 
-                retransform_normal_vector_plane_cloud, 
-                grasp_point, 
-                Rotate_Normal_Angle);
+      //   //rotate point Cloud
+      // do_Rotate(retransform_normal_vector_plane_cloud, 
+      //           retransform_normal_vector_plane_cloud, 
+      //           grasp_point, 
+      //           Rotate_Normal_Angle);
 
-      //rotate point Cloud
-      do_Rotate(retransform_open_vector_plane_cloud, 
-                retransform_open_vector_plane_cloud, 
-                grasp_point, 
-                Rotate_Open_Angle);
+      // //rotate point Cloud
+      // do_Rotate(retransform_open_vector_plane_cloud, 
+      //           retransform_open_vector_plane_cloud, 
+      //           grasp_point, 
+      //           Rotate_Open_Angle);
 
-      do_PerspectiveProjection(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
+      do_PerspectiveProjection_2(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
                                 Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Approach_PwPs,
                                 Mapping_width/2, Mapping_high/2, 300, 300);
       
-      do_PerspectiveProjection(retransform_open_vector_plane_cloud, Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_Depth_Image, 
+      do_PerspectiveProjection_2(retransform_open_vector_plane_cloud, Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_Depth_Image, 
                               Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Open_PwPs,
                               Mapping_width/2, Mapping_high/2, 300, 300);
 
-      do_PerspectiveProjection(retransform_normal_vector_plane_cloud, Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_Depth_Image, 
+      do_PerspectiveProjection_2(retransform_normal_vector_plane_cloud, Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_Depth_Image, 
                               Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Normal_PwPs,
                               Mapping_width/2, Mapping_high/2, 300, 300);
 
-      cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(10, 10));  
+      cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));  
       
       cv::dilate(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, Grab_element);
-      cv::dilate(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, Grab_element); // <===應該是平的！！！
+      cv::dilate(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, Grab_element); 
 
       cv::dilate(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, Grab_element);
-      cv::dilate(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, Grab_element); // <===應該是平的！！！
+      cv::dilate(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, Grab_element); 
 
       cv::dilate(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, Grab_element);
-      cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); // <===應該是平的！！！
-      //=== Project Image === [end]
+      cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); 
 
       // cv::Size cv_downsize = cv::Size(320, 240);
       cv::Size cv_downsize = cv::Size(160, 120);

@@ -140,7 +140,7 @@ def depth_callback(image):
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self, input_image_size):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=18, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=17, name="action")
 
         self.input_image_size = input_image_size
 
@@ -241,7 +241,10 @@ class GraspEnv(py_environment.PyEnvironment):
     def grab_normal_depth_callback(self, image):
         try:
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis =-1)
-
+            # cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_normal_depth_image', self.grab_normal_depth_image)
+            # cv2.waitKey(1)
+            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
         except CvBridgeError as e:
             print(e)
 
@@ -411,13 +414,14 @@ class GraspEnv(py_environment.PyEnvironment):
 
                 rotation.z = self.rotate_z
             
-            elif rotate_axis == "stop":
-                pass
+            # elif rotate_axis == "stop":
+            #     pass
 
             else:
                 print("something wrong..")
 
             pub_AngleAxisRotation.publish(rotation)
+            time.sleep(0.02)
 
 
 
@@ -430,9 +434,7 @@ class GraspEnv(py_environment.PyEnvironment):
         self._reward = 10*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
 
     def _step(self, action):
-        time.sleep(0.012)
         self._update_ROS_data()
-        self._update_reward()
 
         if self._episode_ended:
             return self.reset()
@@ -509,19 +511,21 @@ class GraspEnv(py_environment.PyEnvironment):
 
             self._rotate_grasp("-z_b")
         
-        elif action ==18:
+        # elif action ==18:
 
-            self._rotate_grasp("stop")
-            self._episode_ended = True
-            self._step_counter = 0
-            print("stop!")
+        #     self._rotate_grasp("stop")
+        #     self._episode_ended = True
+        #     self._step_counter = 0
+
+        #     return ts.termination(self._state, self._reward)
 
         else:
+            raise ValueError('`action` value wrong.')
 
-            self._episode_ended = True
-        
         self._step_counter = self._step_counter +1
-        
+
+        self._update_reward()
+
         if self._number_of_finger_grab_pointClouds > 0:
             self._episode_ended = True
             self._step_counter = 0
@@ -595,7 +599,7 @@ if __name__ == '__main__':
                     name='QNetwork'
                 )
 
-    learning_rate = 1e-3
+    learning_rate = 1e-4
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     train_step_counter = tf.Variable(0)
 
@@ -613,14 +617,13 @@ if __name__ == '__main__':
 
     replay_buffer = tf_agents.replay_buffers.tf_uniform_replay_buffer.TFUniformReplayBuffer(data_spec=agent.collect_data_spec,
                                                                                             batch_size=tf_env.batch_size,
-                                                                                            max_length=64*40)
+                                                                                            max_length=64*100)
 
     def compute_avg_return(environment, policy, num_episodes=10):
         total_return = 0.0
         time_start = time.time()
 
         for _ in range(num_episodes):
-
             time_step = environment.reset()
             episode_return = 0.0
             while not time_step.is_last():
