@@ -35,7 +35,7 @@ no_grasps = 1
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default='/home/luca-home-ubuntu20/code/RVP_GGCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65',
+    parser.add_argument('--network', type=str, default='/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65',
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -111,12 +111,12 @@ if __name__ == '__main__':
                             pub_grcnn_result.publish(grcnn_result_msg)
                             print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
 
-                    # plot_results(fig=fig,
-                    #             rgb_img=cam_data.get_rgb(rgb, False),
-                    #             depth_img=np.squeeze(cam_data.get_depth(depth)),
-                    #             grasp_q_img=q_img,
-                    #             grasp_angle_img=ang_img,
-                    #             no_grasps=args.n_grasps,
-                    #             grasp_width_img=width_img)
+                    plot_results(fig=fig,
+                                rgb_img=cam_data.get_rgb(rgb, False),
+                                depth_img=np.squeeze(cam_data.get_depth(depth)),
+                                grasp_q_img=q_img,
+                                grasp_angle_img=ang_img,
+                                no_grasps=args.n_grasps,
+                                grasp_width_img=width_img)
         finally:
             print('bye grcnn_inference!')

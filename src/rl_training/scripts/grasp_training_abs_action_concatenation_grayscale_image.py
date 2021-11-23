@@ -140,7 +140,7 @@ def depth_callback(image):
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self, input_image_size):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=5, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=360, name="action")
 
         self.input_image_size = input_image_size
 
@@ -161,7 +161,7 @@ class GraspEnv(py_environment.PyEnvironment):
 
         self._reward = 0 
         self._step_counter = 0
-        self._step_lengh = 90
+        self._step_lengh = 9
         self._number_of_grab_pointClouds = 0
         self._number_of_finger_grab_pointClouds = 0
         self.pointLikelihoos_left_finger = 0
@@ -271,159 +271,49 @@ class GraspEnv(py_environment.PyEnvironment):
     
     def _reset(self):
 
-        self._update_ROS_data()
         self._reward = 0 
         self._episode_ended = False
 
         initial_angle = (math.pi*90)/180
 
-        self.rotate_x = initial_angle * (random.random() - 0.5)
-        self.rotate_y = initial_angle * (random.random() - 0.5)
-        self.rotate_z = initial_angle * (random.random() - 0.5)
+        # self.rotate_x = initial_angle * (random.random() - 0.5)
+        # self.rotate_y = initial_angle * (random.random() - 0.5)
+        # self.rotate_z = initial_angle * (random.random() - 0.5)
+
+        rotation = AngleAxis_rotation_msg()
+
+        rotation.x = initial_angle * (random.random() - 0.5)
+        rotation.y = initial_angle * (random.random() - 0.5)
+        rotation.z = 0
+        pub_AngleAxisRotation.publish(rotation)
+        time.sleep(0.02)
+        self._update_ROS_data()
 
         return ts.restart(self._state)
     
-    def _rotate_grasp(self, rotate_axis):
+    def _rotate_grasp(self, action_value):
         
         rotation = AngleAxis_rotation_msg()
-        rotation.x = self.rotate_x
-        rotation.y = self.rotate_y
-        rotation.z = self.rotate_z
+        rotation.x = 0
+        rotation.y = 0
+        rotation.z = 0
 
         # 1 degree
-        rotation_angle_l = math.pi/180
+        # rotation_angle_l = math.pi/180
 
+        # 5 degree
         rotation_angle_m = (math.pi*5)/180
 
-        rotation_angle_b = (math.pi*10)/180
+        # 10 degree
+        # rotation_angle_b = (math.pi*10)/180    
+        #     
+        y_action = (action_value/19) - 9
+        x_action = (action_value%19) - 9
 
+        rotation.y = y_action*rotation_angle_m
+        rotation.x = x_action*rotation_angle_m
 
-        if rotate_axis not in ["x_l", "-x_l", "y_l", "-y_l", "z_l", "-z_l", 
-                               "x_m", "-x_m", "y_m", "-y_m", "z_m", "-z_m", 
-                               "x_b", "-x_b", "y_b", "-y_b", "z_b", "-z_b", 
-                               "stop"]:
-
-            print("rotate_axis must in [x, y, z ,-x, -y, -z, stop]!!")
-        
-        else:
-            if rotate_axis == "x_l":
-
-                self.rotate_x = self.rotate_x + rotation_angle_l
-                
-                rotation.x = self.rotate_x
-
-            elif rotate_axis == "-x_l":
-
-                self.rotate_x = self.rotate_x - rotation_angle_l
-
-                rotation.x =  self.rotate_x
-
-            elif rotate_axis == "y_l":
-
-                self.rotate_y = self.rotate_y + rotation_angle_l
-
-                rotation.y = self.rotate_y 
-
-            elif rotate_axis == "-y_l":
-
-                self.rotate_y = self.rotate_y - rotation_angle_l
-
-                rotation.y =  self.rotate_y 
-
-            elif rotate_axis == "z_l":
-
-                self.rotate_z = self.rotate_z + rotation_angle_l
-
-                rotation.z = self.rotate_z
-
-            elif rotate_axis == "-z_l":
-
-                self.rotate_z = self.rotate_z - rotation_angle_l
-
-                rotation.z = self.rotate_z
-
-            # elif rotate_axis == "x_m":
-
-            #     self.rotate_x = self.rotate_x + rotation_angle_m
-                
-            #     rotation.x = self.rotate_x
-
-            # elif rotate_axis == "-x_m":
-
-            #     self.rotate_x = self.rotate_x - rotation_angle_m
-
-            #     rotation.x = self.rotate_x
-
-            # elif rotate_axis == "y_m":
-
-            #     self.rotate_y = self.rotate_y + rotation_angle_m
-
-            #     rotation.y = self.rotate_y 
-
-            # elif rotate_axis == "-y_m":
-
-            #     self.rotate_y = self.rotate_y - rotation_angle_m
-
-            #     rotation.y = self.rotate_y 
-
-            # elif rotate_axis == "z_m":
-
-            #     self.rotate_z = self.rotate_z + rotation_angle_m
-
-            #     rotation.z = self.rotate_z
-
-            # elif rotate_axis == "-z_m":
-
-            #     self.rotate_z = self.rotate_z - rotation_angle_m
-
-            #     rotation.z = self.rotate_z
-
-            # elif rotate_axis == "x_b":
-
-            #     self.rotate_x = self.rotate_x + rotation_angle_b
-                
-            #     rotation.x = self.rotate_x
-
-            # elif rotate_axis == "-x_b":
-
-            #     self.rotate_x = self.rotate_x - rotation_angle_b
-
-            #     rotation.x = self.rotate_x
-
-            # elif rotate_axis == "y_b":
-
-            #     self.rotate_y = self.rotate_y + rotation_angle_b
-
-            #     rotation.y = self.rotate_y 
-
-            # elif rotate_axis == "-y_b":
-
-            #     self.rotate_y = self.rotate_y - rotation_angle_b
-
-            #     rotation.y = self.rotate_y 
-
-            # elif rotate_axis == "z_b":
-
-            #     self.rotate_z = self.rotate_z + rotation_angle_b
-
-            #     rotation.z = self.rotate_z
-
-            # elif rotate_axis == "-z_b":
-
-            #     self.rotate_z = self.rotate_z - rotation_angle_b
-
-            #     rotation.z = self.rotate_z
-            
-            # elif rotate_axis == "stop":
-            #     pass
-
-            else:
-                print("something wrong..")
-
-            pub_AngleAxisRotation.publish(rotation)
-            time.sleep(0.02)
-
-
+        pub_AngleAxisRotation.publish(rotation)
 
     def _update_ROS_data(self):
 
@@ -434,108 +324,31 @@ class GraspEnv(py_environment.PyEnvironment):
         self._reward = 10*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
 
     def _step(self, action):
-        self._update_ROS_data()
 
         if self._episode_ended:
             return self.reset()
         
-        if action == 0:
-
-            self._rotate_grasp("x_l")
-
-        elif action ==1:
-
-            self._rotate_grasp("-x_l")
-
-        elif action ==2:
-
-            self._rotate_grasp("y_l")
-
-        elif action ==3:
-
-            self._rotate_grasp("-y_l")
-
-        elif action ==4:
-
-            self._rotate_grasp("z_l")
-
-        elif action ==5:
-
-            self._rotate_grasp("-z_l")
+        print("action: ", action)
         
-        # elif action ==6:
+        #action!
+        self._rotate_grasp(action)
 
-        #     self._rotate_grasp("x_m")
+        time.sleep(0.02)
 
-        # elif action ==7:
-
-        #     self._rotate_grasp("-x_m")
-
-        # elif action ==8:
-
-        #     self._rotate_grasp("y_m")
-
-        # elif action ==9:
-
-        #     self._rotate_grasp("-y_m")
-
-        # elif action ==10:
-
-        #     self._rotate_grasp("z_m")
-
-        # elif action ==11:
-
-        #     self._rotate_grasp("-z_m")
-
-        # elif action ==12:
-
-        #     self._rotate_grasp("x_b")
-
-        # elif action ==13:
-
-        #     self._rotate_grasp("-x_b")
-
-        # elif action ==14:
-
-        #     self._rotate_grasp("y_b")
-
-        # elif action ==15:
-
-        #     self._rotate_grasp("-y_b")
-
-        # elif action ==16:
-
-        #     self._rotate_grasp("z_b")
-
-        # elif action ==17:
-
-        #     self._rotate_grasp("-z_b")
-        
-        # elif action ==18:
-
-        #     self._rotate_grasp("stop")
-        #     self._episode_ended = True
-        #     self._step_counter = 0
-
-        #     return ts.termination(self._state, self._reward)
-
-        else:
-            raise ValueError('`action` value wrong.')
-
-        self._step_counter = self._step_counter +1
-
+        self._update_ROS_data()
         self._update_reward()
+        self._step_counter = self._step_counter +1
 
         if self._number_of_finger_grab_pointClouds > 0:
             self._episode_ended = True
             self._step_counter = 0
-            return ts.termination(self._state, -1000)
+            return ts.termination(self._state, -100)
 
-        if (abs(self.rotate_x) > (math.pi*45)/180) or (abs(self.rotate_y) > (math.pi*45)/180):
+        if (abs(self.rotate_x) > (math.pi*30)/180) or (abs(self.rotate_y) > (math.pi*30)/180):
             self._episode_ended = True
             self._step_counter = 0
             # print("self.rotate_x ", self.rotate_x, ", self.rotate_y ", self.rotate_y, ", self.rotate_z ", self.rotate_z)
-            return ts.termination(self._state, -1000)
+            return ts.termination(self._state, -100)
 
         if self._step_counter > self._step_lengh:
             self._episode_ended = True
@@ -573,10 +386,10 @@ if __name__ == '__main__':
     
     preprocessing_layers = {
     'depth_grab': tf.keras.models.Sequential([ 
-        tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.MaxPool2D(),
-        tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
+        # tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
+        # tf.keras.layers.BatchNormalization(),
+        # tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Conv2D(filters=20, kernel_size=(3, 3), activation='relu'),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.MaxPool2D(),
         tf.keras.layers.Flatten()])
@@ -590,7 +403,7 @@ if __name__ == '__main__':
                     tf_env.action_spec(), 
                     preprocessing_layers=preprocessing_layers,
                     conv_layer_params=None, 
-                    fc_layer_params=(100, 100),
+                    fc_layer_params=(20, ),
                     dropout_layer_params=None, 
                     activation_fn=tf.keras.activations.relu,
                     kernel_initializer=None, 
@@ -601,15 +414,26 @@ if __name__ == '__main__':
 
     learning_rate = 1e-4
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-    train_step_counter = tf.Variable(0)
 
+    global_step = tf.compat.v1.train.get_or_create_global_step()
+    start_epsilon = 0.1
+    n_of_steps = 10000
+    end_epsilon = 0.0001
+    epsilon = tf.compat.v1.train.polynomial_decay(
+        start_epsilon,
+        global_step,
+        n_of_steps,
+        end_learning_rate=end_epsilon)
+    n_TD_step_update = 1
     agent = dqn_agent.DqnAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
+        n_step_update = n_TD_step_update,
         q_network=my_q_network,
+        epsilon_greedy=epsilon,
         optimizer=optimizer,
         td_errors_loss_fn=common.element_wise_squared_loss,
-        train_step_counter=train_step_counter)
+        train_step_counter=global_step)
 
     agent.initialize()
 
@@ -655,7 +479,7 @@ if __name__ == '__main__':
     batch_size = 64
     dataset = replay_buffer.as_dataset(num_parallel_calls=3, 
                                         sample_batch_size=batch_size, 
-                                        num_steps=2).prefetch(3)
+                                        num_steps=(n_TD_step_update+1)).prefetch(3)
     iterator = iter(dataset)
     num_iterations = 10000
 
@@ -669,11 +493,10 @@ if __name__ == '__main__':
     avf_return_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
     step_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
 
+    for _ in range(batch_size):
+        collect_step(tf_env, agent.collect_policy, replay_buffer)
 
     while not rospy.is_shutdown():
-
-        for _ in range(batch_size):
-            collect_step(tf_env, agent.policy, replay_buffer)
 
         for _ in range(num_iterations):
             # Collect a few steps using collect_policy and save to the replay buffer.
