@@ -144,11 +144,10 @@ class GraspEnv(py_environment.PyEnvironment):
 
         self.input_image_size = input_image_size
 
-        self._observation_spec = {  "depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 3), dtype = np.float32, minimum=0, maximum=255)
+        self._observation_spec = {  "depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 1), dtype = np.float32, minimum=0, maximum=255)
                                     }
 
-        self._state = { "depth_grab" : np.zeros((self.input_image_size[0], self.input_image_size[1], 3), np.float32)
-                        }
+        self._state = { "depth_grab" : np.zeros((self.input_image_size[0], self.input_image_size[1], 1), np.float32)}
         
         self.grab_normal_depth_image = np.zeros((0,0,1), np.float32)
         self.grab_approach_depth_image = np.zeros((0,0,1), np.float32)
@@ -282,13 +281,15 @@ class GraspEnv(py_environment.PyEnvironment):
 
         rotation = AngleAxis_rotation_msg()
 
-        rotation.x = initial_angle * (random.random() - 0.5)
-        rotation.y = initial_angle * (random.random() - 0.5)
+        # rotation.x = initial_angle * (random.random() - 0.5)
+        # rotation.y = initial_angle * (random.random() - 0.5)
+        rotation.x = 0
+        rotation.y = 0
         rotation.z = 0
         pub_AngleAxisRotation.publish(rotation)
-        time.sleep(0.02)
+        time.sleep(0.025)
         self._update_ROS_data()
-
+        print("reset!")
         return ts.restart(self._state)
     
     def _rotate_grasp(self, action_value):
@@ -317,11 +318,13 @@ class GraspEnv(py_environment.PyEnvironment):
 
     def _update_ROS_data(self):
 
-        self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        # self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        self._state["depth_grab"] = self.grab_normal_depth_image
+
         # print("self._state[depth_grab].shape", self._state["depth_grab"].shape)
 
     def _update_reward(self):
-        self._reward = 10*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
+        self._reward = 50*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) + 20*(self.apporachLikelihood) #- self._step_counter
 
     def _step(self, action):
 
@@ -333,7 +336,7 @@ class GraspEnv(py_environment.PyEnvironment):
         #action!
         self._rotate_grasp(action)
 
-        time.sleep(0.02)
+        time.sleep(0.035)
 
         self._update_ROS_data()
         self._update_reward()
@@ -362,15 +365,6 @@ class GraspEnv(py_environment.PyEnvironment):
 if __name__ == '__main__':
 
     rospy.init_node('Reinforcement_Learning_Trining', anonymous=True)
-
-    # # Create ROS subscriber for gripper working area pointcloud
-    # rospy.Subscriber("/Grab_PointClouds", PointCloud2, grab_pointClouds_callback, buff_size=52428800)
-
-    # # Create ROS subscriber for mapping rgb image from Azure input pointcloud
-    # rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
-
-    # # Create ROS subscriber for mapping rgb image from Azure input pointcloud
-    # rospy.Subscriber("/projected_image/depth", Image, depth_callback)
 
     # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
     pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
@@ -417,7 +411,7 @@ if __name__ == '__main__':
 
     global_step = tf.compat.v1.train.get_or_create_global_step()
     start_epsilon = 0.1
-    n_of_steps = 10000
+    n_of_steps = 1000000
     end_epsilon = 0.0001
     epsilon = tf.compat.v1.train.polynomial_decay(
         start_epsilon,

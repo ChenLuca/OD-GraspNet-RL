@@ -159,9 +159,8 @@ struct oan_vector
 
 ////=========global paremeters=========
 
-bool SHOW_CV_WINDOWS = false;
-bool ROTATE_POINTCLOUD =false;
-
+bool ROTATE_POINTCLOUD = false;
+bool Set_Input_PointCloud = false;
 //Snapshot service
 int take_picture_counter = 0;
 
@@ -507,7 +506,7 @@ void do_PerspectiveProjection_2(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cl
       z = input_cloud->points[i].z;
       if (z > 0.0 && z < 0.1)
       {
-        z = 255 - z/0.1*255;
+        z = z/0.1*255;
         Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
@@ -969,6 +968,8 @@ bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Respon
   //save depth image as .tiff format
   cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_Depth_Image_root, Mapping_Depth_Image);
 
+  pcl::io::savePCDFileASCII ("/home/ur5/datasets/my_grasp_dataset/test_pcd.pcd", *filter_cloud);
+
   take_picture_counter++;
 
   res.back = take_picture_counter;
@@ -983,6 +984,8 @@ bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPoin
   cout<<"Set Input PointCloud"<<endl;
   
   pcl::copyPointCloud(*filter_cloud, *now_cloud);
+  Set_Input_PointCloud = true;
+
   res.back = 0;
   return true;
 }
@@ -1007,10 +1010,12 @@ void do_PointcloudProcess()
   viewpoint_rotation[1] = 0.0;
   viewpoint_rotation[2] = 0.0;
 
-  std::vector<Point_with_Pixel> PwPs;
-  if(now_cloud->size()!=0)
+
+  if(filter_cloud->size()!=0)
   {
-    do_PerspectiveProjection(now_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, PwPs, fx, fy, cx, cy);
+    std::vector<Point_with_Pixel> filter_cloud_PwPs;
+
+    do_PerspectiveProjection(filter_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, filter_cloud_PwPs, fx, fy, cx, cy);
 
     //do dilate for sparse image result
     cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
@@ -1027,7 +1032,11 @@ void do_PointcloudProcess()
     depth_msg->header.stamp = depth_begin;
     pubProjectDepthImage.publish(depth_msg);
     //=== Get projected rgb & depth image form pointcloud === [end]
+  }
+  
 
+  if(now_cloud->size()!=0)
+  {
     //=== Get grab pointclout & count it's number === [begin]
     float grasp_angle = grcnn_input.angle;
     grasp_angle = 0;
@@ -1041,36 +1050,17 @@ void do_PointcloudProcess()
 
     oan_vector plane_coefficients_vector;
 
-    if(do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, PwPs, now_cloud, grasp_3D, plane_coefficients_vector))
+    // if(Set_Input_PointCloud)
+    // {
+    //   Set_Input_PointCloud = false;
+    //   cout <<"Set_Input_PointCloud~~~"<<endl;
+    // }
+    std::vector<Point_with_Pixel> now_cloud_PwPs;
+
+    do_PerspectiveProjection(now_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, now_cloud_PwPs, fx, fy, cx, cy);
+
+    if(do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector))
     {
-      //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
-      // ax + by + cy + d = 0
-      // plane_coefficients = a, b, c, d
-      // float *normal_vector_plane_coefficients = new float[4];
-      // float *approach_vector_plane_coefficients = new float[4];
-      // float *open_vector_plane_coefficients = new float[4];
-
-      // normal_vector_plane_coefficients[0] = plane_coefficients_vector.normal_vector(0);
-      // normal_vector_plane_coefficients[1] = plane_coefficients_vector.normal_vector(1);
-      // normal_vector_plane_coefficients[2] = plane_coefficients_vector.normal_vector(2);
-      // normal_vector_plane_coefficients[3] = -1*plane_coefficients_vector.normal_vector(3);
-
-      // approach_vector_plane_coefficients[0] = plane_coefficients_vector.approach_vector(0);
-      // approach_vector_plane_coefficients[1] = plane_coefficients_vector.approach_vector(1);
-      // approach_vector_plane_coefficients[2] = plane_coefficients_vector.approach_vector(2);
-      // approach_vector_plane_coefficients[3] = -1*plane_coefficients_vector.approach_vector(3);
-
-      // open_vector_plane_coefficients[0] = plane_coefficients_vector.open_vector(0);
-      // open_vector_plane_coefficients[1] = plane_coefficients_vector.open_vector(1);
-      // open_vector_plane_coefficients[2] = plane_coefficients_vector.open_vector(2);
-      // open_vector_plane_coefficients[3] = -1*plane_coefficients_vector.open_vector(3);
-
-      // do_Project_using_parametric_model(grab_cloud, project_normal_vector_plane_cloud, normal_vector_plane_coefficients);
-      // do_Project_using_parametric_model(grab_cloud, project_approach_vector_plane_cloud, approach_vector_plane_coefficients);
-      // do_Project_using_parametric_model(grab_cloud, project_open_vector_plane_cloud, open_vector_plane_coefficients);
-
-      //=== Project plane pointcloud of grab_cloud from normal, approach and open vector === [end]
-
       float *Rotate_angle = new float[3];
 
       Rotate_angle[0] = -1 * Angle_axis_rotation_open;  //X axis
@@ -1109,19 +1099,6 @@ void do_PointcloudProcess()
                 Rotate_angle,
                 z_dist);
 
-      //=== publish plane pointcloud and grab pointcloud === [begin]
-      // pcl::toROSMsg(*project_normal_vector_plane_cloud, project_normal_vector_plane_output);
-      // project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
-      // pubProjectNormalVectorPlaneCloud.publish(project_normal_vector_plane_output);
-
-      // pcl::toROSMsg(*project_approach_vector_plane_cloud, project_approach_vector_plane_output);
-      // project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
-      // pubProjectApproachVectorPlaneCloud.publish(project_approach_vector_plane_output);
-
-      // pcl::toROSMsg(*project_open_vector_plane_cloud, project_open_vector_plane_output);
-      // project_open_vector_plane_output.header.frame_id = "depth_camera_link";
-      // pubProjectOpenVectorPlaneCloud.publish(project_open_vector_plane_output);
-
       pcl::toROSMsg(*retransform_normal_vector_plane_cloud, retransform_project_normal_vector_plane_output);
       retransform_project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
       pubRetransformProjectNormalVectorPlaneCloud.publish(retransform_project_normal_vector_plane_output);
@@ -1145,93 +1122,103 @@ void do_PointcloudProcess()
       pcl::toROSMsg(*grab_cloud_right, grab_output_right);
       grab_output_right.header.frame_id = "depth_camera_link";
       pubGrabPointCloudsRight.publish(grab_output_right);
-
-      pcl::PointCloud<pcl::PointNormal>::Ptr left_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
-      do_calculate_normal(grab_cloud_left, left_cloud_normal);
-      pcl_utils::coordinate_normal object_normal_left;
-      object_normal_left = average_normal(grab_cloud_left, left_cloud_normal);
-      pubGrabPointCloudsLeftNormal.publish(object_normal_left);
-
-      geometry_msgs::PoseStamped object_pose_left;
-
-      object_pose_left.header.frame_id = "depth_camera_link";
-      object_pose_left.header.stamp = ros::Time::now();;
-      object_pose_left.header.seq = 1;
       
-      geometry_msgs::Quaternion left_msg;
+      //left finger====================================================================
+      if(grab_cloud_left->size()!= 0)
+      {
+        pcl::PointCloud<pcl::PointNormal>::Ptr left_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+        do_calculate_normal(grab_cloud_left, left_cloud_normal);
+        pcl_utils::coordinate_normal object_normal_left;
+        object_normal_left = average_normal(grab_cloud_left, left_cloud_normal);
+        pubGrabPointCloudsLeftNormal.publish(object_normal_left);
 
-      // extracting surface normals
-      tf::Vector3 left_axis_vector(object_normal_left.normal_x, object_normal_left.normal_y, object_normal_left.normal_z);
-      tf::Vector3 left_up_vector(1.0, 0.0, 0.0);
+        geometry_msgs::PoseStamped object_pose_left;
 
-      tf::Vector3 left_right_vector = left_axis_vector.cross(left_up_vector);
-      left_right_vector.normalized();
-      tf::Quaternion left_q(left_right_vector, -1.0*acos(left_axis_vector.dot(left_up_vector)));
-      left_q.normalize();
-      tf::quaternionTFToMsg(left_q, left_msg);
+        object_pose_left.header.frame_id = "depth_camera_link";
+        object_pose_left.header.stamp = ros::Time::now();;
+        object_pose_left.header.seq = 1;
 
-      object_pose_left.pose.orientation = left_msg;
-      object_pose_left.pose.position.x = object_normal_left.x;
-      object_pose_left.pose.position.y = object_normal_left.y;
-      object_pose_left.pose.position.z = object_normal_left.z;
+        // extracting surface normals
+        tf::Vector3 left_axis_vector(object_normal_left.normal_x, object_normal_left.normal_y, object_normal_left.normal_z);
+        tf::Vector3 left_up_vector(1.0, 0.0, 0.0);
 
-      pub_pose_left.publish (object_pose_left);
+        tf::Vector3 left_right_vector = left_axis_vector.cross(left_up_vector);
+        left_right_vector.normalized();
+        tf::Quaternion left_q(left_right_vector, -1.0*acos(left_axis_vector.dot(left_up_vector)));
+        left_q.normalize();
 
-      float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
+        geometry_msgs::Quaternion left_msg;
+
+        tf::quaternionTFToMsg(left_q, left_msg);
+
+        object_pose_left.pose.orientation = left_msg;
+        object_pose_left.pose.position.x = object_normal_left.x;
+        object_pose_left.pose.position.y = object_normal_left.y;
+        object_pose_left.pose.position.z = object_normal_left.z;
+
+        pub_pose_left.publish (object_pose_left);
+
+        float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x 
+                              + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y 
+                              + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
+        
+        std_msgs::Float64 left_likelihood_msg;
+        left_likelihood_msg.data = left_likelihood;
+        pubLeftLikelihood.publish(left_likelihood_msg);
+
+      }
 
       //right finger====================================================================
-      pcl::PointCloud<pcl::PointNormal>::Ptr right_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
-      do_calculate_normal(grab_cloud_right, right_cloud_normal);
-      pcl_utils::coordinate_normal object_normal_right;
-      object_normal_right = average_normal(grab_cloud_right, right_cloud_normal);
+      if (grab_cloud_right->size()!= 0)
+      {
+        pcl::PointCloud<pcl::PointNormal>::Ptr right_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+        do_calculate_normal(grab_cloud_right, right_cloud_normal);
+        pcl_utils::coordinate_normal object_normal_right;
+        object_normal_right = average_normal(grab_cloud_right, right_cloud_normal);
 
-      pubGrabPointCloudsRightNormal.publish(object_normal_right);
+        pubGrabPointCloudsRightNormal.publish(object_normal_right);
 
-      geometry_msgs::PoseStamped object_pose_right;
+        geometry_msgs::PoseStamped object_pose_right;
 
-      object_pose_right.header.frame_id = "depth_camera_link";
-      object_pose_right.header.stamp = ros::Time::now();;
-      object_pose_right.header.seq = 1;
+        object_pose_right.header.frame_id = "depth_camera_link";
+        object_pose_right.header.stamp = ros::Time::now();;
+        object_pose_right.header.seq = 1;
+        
+        geometry_msgs::Quaternion right_msg;
+
+        // extracting surface normals
+        tf::Vector3 right_axis_vector(object_normal_right.normal_x, object_normal_right.normal_y, object_normal_right.normal_z);
+        tf::Vector3 right_up_vector(1.0, 0.0, 0.0);
+
+        tf::Vector3 right_right_vector = right_axis_vector.cross(right_up_vector);
+        right_right_vector.normalized();
+        tf::Quaternion right_q(right_right_vector, -1.0*acos(right_axis_vector.dot(right_up_vector)));
+        right_q.normalize();
+        tf::quaternionTFToMsg(right_q, right_msg);
+
+        object_pose_right.pose.orientation = right_msg;
+        object_pose_right.pose.position.x = object_normal_right.x;
+        object_pose_right.pose.position.y = object_normal_right.y;
+        object_pose_right.pose.position.z = object_normal_right.z;
+        
+        pub_pose_right.publish (object_pose_right);
+
+        float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
+                                + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
+                                + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
       
-      geometry_msgs::Quaternion right_msg;
+        std_msgs::Float64 right_likelihood_msg;
+        right_likelihood_msg.data = right_likelihood;
+        pubRightLikelihood.publish(right_likelihood_msg);
+      }
 
-      // extracting surface normals
-      tf::Vector3 right_axis_vector(object_normal_right.normal_x, object_normal_right.normal_y, object_normal_right.normal_z);
-      tf::Vector3 right_up_vector(1.0, 0.0, 0.0);
-
-      tf::Vector3 right_right_vector = right_axis_vector.cross(right_up_vector);
-      right_right_vector.normalized();
-      tf::Quaternion right_q(right_right_vector, -1.0*acos(right_axis_vector.dot(right_up_vector)));
-      right_q.normalize();
-      tf::quaternionTFToMsg(right_q, right_msg);
-
-      object_pose_right.pose.orientation = right_msg;
-      object_pose_right.pose.position.x = object_normal_right.x;
-      object_pose_right.pose.position.y = object_normal_right.y;
-      object_pose_right.pose.position.z = object_normal_right.z;
-      
-      pub_pose_right.publish (object_pose_right);
-
-      float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
-                              + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
-                              + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
-
-     
+      std_msgs::Float64 approach_likelihood_msg;
       // approach to (0, 0, 1) is better
       float approach_likelihood =  plane_coefficients_vector.approach_vector(2);
-
-      // cout << "approach_likelihood " << approach_likelihood << "\n";
-
-      std_msgs::Float64 left_likelihood_msg, right_likelihood_msg, approach_likelihood_msg;
-
-      left_likelihood_msg.data = left_likelihood;
-      right_likelihood_msg.data = right_likelihood;
       approach_likelihood_msg.data = approach_likelihood;
-      pubLeftLikelihood.publish(left_likelihood_msg);
-      pubRightLikelihood.publish(right_likelihood_msg);
-
       //!!!!!!!!!!!!!!!!!
       pubApproachLikelihood.publish(approach_likelihood_msg);
+
       //====================================================================
 
       //=== publish plane pointcloud and grab pointcloud === [end]
@@ -1253,29 +1240,6 @@ void do_PointcloudProcess()
       Grab_Cloud_Normal_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
       Grab_Cloud_Open_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
       Grab_Cloud_Open_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
-
-      // float *Rotate_Normal_Angle = new float[3];
-      // float *Rotate_Open_Angle = new float[3];
-
-      // Rotate_Normal_Angle[0] = M_PI/2;  //X axis
-      // Rotate_Normal_Angle[1] = 0;  //Y axis
-      // Rotate_Normal_Angle[2] = 0;  //Z axis
-
-      // Rotate_Open_Angle[0] = M_PI/2;  //X axis
-      // Rotate_Open_Angle[1] = 0;  //Y axis
-      // Rotate_Open_Angle[2] = M_PI/2;  //Z axis
-
-      //   //rotate point Cloud
-      // do_Rotate(retransform_normal_vector_plane_cloud, 
-      //           retransform_normal_vector_plane_cloud, 
-      //           grasp_point, 
-      //           Rotate_Normal_Angle);
-
-      // //rotate point Cloud
-      // do_Rotate(retransform_open_vector_plane_cloud, 
-      //           retransform_open_vector_plane_cloud, 
-      //           grasp_point, 
-      //           Rotate_Open_Angle);
 
       do_PerspectiveProjection_2(retransform_approach_vector_plane_cloud, Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_Depth_Image, 
                                 Grab_Cloud_viewpoint_Translation, Grab_Cloud_viewpoint_Rotation, Grab_Cloud_Approach_PwPs,
@@ -1310,21 +1274,7 @@ void do_PointcloudProcess()
       cv::resize(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, cv_downsize, cv::INTER_AREA);
       cv::resize(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, cv_downsize, cv::INTER_AREA);
       cv::resize(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, cv_downsize, cv::INTER_AREA);
-      
-      if(SHOW_CV_WINDOWS)
-      {
-        cv::namedWindow("Depth Image window", cv::WINDOW_AUTOSIZE);
-        cv::imshow("Depth Image window", Mapping_Depth_Image);
-        cv::namedWindow("RGB Image window", cv::WINDOW_AUTOSIZE);
-        cv::imshow("RGB Image window", Mapping_RGB_Image);
-
-        cv::namedWindow("Grab_Cloud_Depth_Image window", cv::WINDOW_AUTOSIZE);
-        cv::imshow("Grab_Cloud_Depth_Image window", Grab_Cloud_Approach_Depth_Image);
-        cv::namedWindow("Grab_Cloud_RGB_Image window", cv::WINDOW_AUTOSIZE);
-        cv::imshow("Grab_Cloud_RGB_Image window", Grab_Cloud_Approach_RGB_Image);
-        cv::waitKey(1);
-      }
-
+    
       //=== publish mapping image === [begin]
       sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
       ros::Time grab_approach_rgb_begin = ros::Time::now();
@@ -1501,7 +1451,6 @@ int main (int argc, char** argv)
 
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
 
-  
   ros::WallTime start_, end_;
 
   ros::Rate loop_rate(100);
