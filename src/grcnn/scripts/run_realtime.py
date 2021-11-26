@@ -39,7 +39,7 @@ loc_OD_ConvNet_v1_dilated = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/script
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_grcnn,
+    parser.add_argument('--network', type=str, default=loc_ODR_ConvNet_v4,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')

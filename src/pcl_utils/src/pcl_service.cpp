@@ -1043,10 +1043,10 @@ void do_PointcloudProcess()
 
     cv::Point2f grcnn_predict;
 
-    // grcnn_predict.x = grcnn_input.x;
-    // grcnn_predict.y = grcnn_input.y;
-    grcnn_predict.x = 320;
-    grcnn_predict.y = 260;
+    grcnn_predict.x = grcnn_input.x + 190;
+    grcnn_predict.y = grcnn_input.y + 110;
+    // grcnn_predict.x = 320;
+    // grcnn_predict.y = 260;
 
     oan_vector plane_coefficients_vector;
 

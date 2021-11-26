@@ -273,7 +273,7 @@ class GraspEnv(py_environment.PyEnvironment):
         self._reward = 0 
         self._episode_ended = False
 
-        initial_angle = (math.pi*90)/180
+        initial_angle = (math.pi*60)/180
 
         # self.rotate_x = initial_angle * (random.random() - 0.5)
         # self.rotate_y = initial_angle * (random.random() - 0.5)
@@ -281,13 +281,11 @@ class GraspEnv(py_environment.PyEnvironment):
 
         rotation = AngleAxis_rotation_msg()
 
-        # rotation.x = initial_angle * (random.random() - 0.5)
-        # rotation.y = initial_angle * (random.random() - 0.5)
-        rotation.x = 0
+        rotation.x = initial_angle * (random.random() - 0.5)
+        rotation.z = initial_angle * (random.random() - 0.5)
         rotation.y = 0
-        rotation.z = 0
         pub_AngleAxisRotation.publish(rotation)
-        time.sleep(0.025)
+        time.sleep(0.04)
         self._update_ROS_data()
         print("reset!")
         return ts.restart(self._state)
@@ -308,10 +306,10 @@ class GraspEnv(py_environment.PyEnvironment):
         # 10 degree
         # rotation_angle_b = (math.pi*10)/180    
         #     
-        y_action = (action_value/19) - 9
+        z_action = (action_value/19) - 9
         x_action = (action_value%19) - 9
 
-        rotation.y = y_action*rotation_angle_m
+        rotation.z = z_action*rotation_angle_m
         rotation.x = x_action*rotation_angle_m
 
         pub_AngleAxisRotation.publish(rotation)
@@ -336,7 +334,7 @@ class GraspEnv(py_environment.PyEnvironment):
         #action!
         self._rotate_grasp(action)
 
-        time.sleep(0.035)
+        time.sleep(0.04)
 
         self._update_ROS_data()
         self._update_reward()
@@ -350,7 +348,7 @@ class GraspEnv(py_environment.PyEnvironment):
         if (abs(self.rotate_x) > (math.pi*30)/180) or (abs(self.rotate_y) > (math.pi*30)/180):
             self._episode_ended = True
             self._step_counter = 0
-            # print("self.rotate_x ", self.rotate_x, ", self.rotate_y ", self.rotate_y, ", self.rotate_z ", self.rotate_z)
+            print("out of angle!")
             return ts.termination(self._state, -100)
 
         if self._step_counter > self._step_lengh:
@@ -411,7 +409,7 @@ if __name__ == '__main__':
 
     global_step = tf.compat.v1.train.get_or_create_global_step()
     start_epsilon = 0.1
-    n_of_steps = 1000000
+    n_of_steps = 500000
     end_epsilon = 0.0001
     epsilon = tf.compat.v1.train.polynomial_decay(
         start_epsilon,
