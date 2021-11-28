@@ -3,6 +3,7 @@ import sys
 import rospy
 import cv2
 import numpy as np
+import math
 
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
 
@@ -23,6 +24,7 @@ from utils.data.camera_data import CameraData
 from utils.visualisation.plot import save_results, plot_results
 from utils.dataset_processing.grasp import detect_grasps
 from grcnn.msg import grcnn_result
+from grcnn.msg import AngleAxis_rotation_msg
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,10 +38,11 @@ loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scri
 loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
 loc_ODR_ConvNet_v4 = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_0713_ODR_ConvNet_3_VoV/epoch_16_iou_0.92'
 loc_OD_ConvNet_v1_dilated = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_1729_OD_ConvNet_1_dilated/epoch_19_iou_0.92'
+loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_ODR_ConvNet_v4,
+    parser.add_argument('--network', type=str, default=loc_grcnn,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -74,6 +77,7 @@ if __name__ == '__main__':
     pub_grcnn_result = rospy.Publisher('grcnn/result', grcnn_result, queue_size=10)
     rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+    pub_AngleAxisRotation = rospy.Publisher('/2D_Predict/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
 
     cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
 
@@ -113,7 +117,15 @@ if __name__ == '__main__':
                             grcnn_result_msg.length = g.length
                             grcnn_result_msg.width = g.width
                             pub_grcnn_result.publish(grcnn_result_msg)
+
                             print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
+
+                            rotation = AngleAxis_rotation_msg()
+                            rotation.x = 0
+                            rotation.y = 0
+                            rotation.z = -1* g.angle 
+                            pub_AngleAxisRotation.publish(rotation)
+
 
                     plot_results(fig=fig,
                                 rgb_img=cam_data.get_rgb(rgb, False),

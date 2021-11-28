@@ -47,6 +47,8 @@
 #include "pcl_utils/snapshot.h"
 
 #include "pcl_utils/setPointCloud.h"
+#include "pcl_utils/loadPointCloud.h"
+
 
 #include <iostream>
 #include <fstream>
@@ -71,7 +73,8 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNum
                pubRightFingerPoint,
                pub_pose_left, pub_pose_right,
                pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood,
-               pubNormaldepthNonZero;
+               pubNormaldepthNonZero,
+               pubNowCloud;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -90,7 +93,8 @@ sensor_msgs::PointCloud2 Filter_output, grab_output, grab_output_left, grab_outp
                          project_open_vector_plane_output,
                          retransform_project_normal_vector_plane_output, 
                          retransform_project_approach_vector_plane_output, 
-                         retransform_project_open_vector_plane_output;
+                         retransform_project_open_vector_plane_output,
+                         now_cloud_output;
 
 
 visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow, right_finger_point;
@@ -197,6 +201,9 @@ float *viewpoint_rotation = new float[3];
 float *grasp_3D = new float[3];
 float *Grab_Cloud_viewpoint_Translation = new float[3];
 float *Grab_Cloud_viewpoint_Rotation = new float[3];
+
+int NumberOfLocalPCD = 20;
+int nowLocalPCD = 0;
 //==============================
 
 ////=========random=========
@@ -725,7 +732,11 @@ pcl_utils::coordinate_normal  average_normal(pcl::PointCloud<pcl::PointXYZRGB>::
     }
   }
   // printf("================\ncloud_size = %d \n",count);
-
+  if (count == 0)
+  {
+    // cout << "zero normal found!, input_normal->points.size()=" << input_normal->points.size() << endl;
+    count = 1;
+  }
   average_normal.x = average_normal.x/count;
   average_normal.y = average_normal.y/count;
   average_normal.z = average_normal.z/count;
@@ -1012,6 +1023,67 @@ bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPoin
   return true;
 }
 
+
+bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
+{
+  string Load_File_path = "/home/ur5/datasets/GraspPointDataset/";
+  string Name_pcd = "pcd99";
+  string Name_PCD_root = ".pcd";
+  string PCD_File_Name;
+  string Name_txt_root = ".txt";
+
+  string PCD_Num_string;
+
+  if (nowLocalPCD <10)
+  {
+    PCD_Num_string = "0" + to_string(nowLocalPCD);
+  }
+  else
+  {
+    PCD_Num_string = to_string(nowLocalPCD);
+  }
+
+  PCD_File_Name = Load_File_path + Name_pcd + PCD_Num_string + Name_PCD_root;
+
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGB> (PCD_File_Name, *now_cloud) == -1) //* load the file
+  {
+    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+    return false;
+  }
+
+
+  pcl::toROSMsg(*now_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "depth_camera_link";
+  pubNowCloud.publish(now_cloud_output);
+
+  ifstream ifs;
+  string line;
+  
+  float predict_x, predict_y, predict_theta; 
+  
+  ifs.open(Load_File_path + Name_pcd + PCD_Num_string + Name_txt_root);
+
+  getline(ifs, line);
+  grcnn_input.x = stof(line);
+  getline(ifs, line);
+  grcnn_input.y = stof(line);
+  getline(ifs, line);
+  Angle_axis_rotation_approach = stof(line);
+
+  // cout << "grcnn_input.x " << grcnn_input.x << ", grcnn_input.y " << grcnn_input.y << ", Angle_axis_rotation_approach " << Angle_axis_rotation_approach << "\n";
+
+  // Close file
+  ifs.close();
+
+  nowLocalPCD++;
+
+  if (nowLocalPCD == NumberOfLocalPCD)
+  {
+    nowLocalPCD = 0;
+  }
+  return true;
+}
+
 void do_PointcloudProcess()
 {
   ros::WallTime start_, end_;
@@ -1065,8 +1137,8 @@ void do_PointcloudProcess()
 
     cv::Point2f grcnn_predict;
 
-    grcnn_predict.x = grcnn_input.x + 190;
-    grcnn_predict.y = grcnn_input.y + 110;
+    grcnn_predict.x = grcnn_input.x;
+    grcnn_predict.y = grcnn_input.y;
     // grcnn_predict.x = 320;
     // grcnn_predict.y = 260;
 
@@ -1183,7 +1255,13 @@ void do_PointcloudProcess()
         float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x 
                               + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y 
                               + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
-        
+
+        if (isnan(left_likelihood))
+        {
+
+          cout << " left_likelihood Not a Number FOUNDED!!!" <<endl;
+        }
+
         std_msgs::Float64 left_likelihood_msg;
         left_likelihood_msg.data = left_likelihood;
         pubLeftLikelihood.publish(left_likelihood_msg);
@@ -1228,7 +1306,13 @@ void do_PointcloudProcess()
         float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
                                 + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
                                 + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
-      
+
+
+        if (isnan(right_likelihood))
+        {
+          cout << " right_likelihood Not a Number FOUNDED!!!" <<endl;
+        }
+        
         std_msgs::Float64 right_likelihood_msg;
         right_likelihood_msg.data = right_likelihood;
         pubRightLikelihood.publish(right_likelihood_msg);
@@ -1237,6 +1321,10 @@ void do_PointcloudProcess()
       std_msgs::Float64 approach_likelihood_msg;
       // approach to (0, 0, 1) is better
       float approach_likelihood =  plane_coefficients_vector.approach_vector(2);
+      if (isnan(approach_likelihood))
+      {
+        cout << " approach_likelihood Not a Number FOUNDED!!!" <<endl;
+      }
       approach_likelihood_msg.data = approach_likelihood;
       //!!!!!!!!!!!!!!!!!
       pubApproachLikelihood.publish(approach_likelihood_msg);
@@ -1341,7 +1429,7 @@ void do_PointcloudProcess()
   end_ = ros::WallTime::now();
   // print results
   double execution_time = (end_ - start_).toNSec() * 1e-6;
-  // ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
+  ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
 }
 
 int main (int argc, char** argv)
@@ -1469,6 +1557,9 @@ int main (int argc, char** argv)
   // Create ROS pointcloud publisher for retransform projected open vector plane cloud
   pubRetransformProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Open_Vector_PlaneClouds", 30);
 
+  pubNowCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Now_Clouds", 30);
+
+
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
 
@@ -1485,6 +1576,9 @@ int main (int argc, char** argv)
   ros::ServiceServer saveImage_service = nh.advertiseService("/snapshot", do_SaveImage);
 
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
+
+  ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud);
+
 
   ros::WallTime start_, end_;
 

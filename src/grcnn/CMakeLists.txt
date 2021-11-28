@@ -52,6 +52,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
    FILES
    grcnn_result.msg
+   AngleAxis_rotation_msg.msg
 )
 
 ## Generate services in the 'srv' folder
