@@ -124,19 +124,21 @@ def do_loadPointCloud(req):
 def compute_avg_return(environment, policy, num_episodes=10):
     total_return = 0.0
     time_start = time.time()
+    num_env = 20
+    for _ in range(num_env):
+        do_loadPointCloud(1)
+        for _ in range(num_episodes):
+            time_step = environment.reset()
+            episode_return = 0.0
+            while not time_step.is_last():
+                action_step = policy.action(time_step)
+                time_step = environment.step(action_step.action)
+                episode_return += time_step.reward
+            total_return += episode_return
 
-    for _ in range(num_episodes):
-        time_step = environment.reset()
-        episode_return = 0.0
-        while not time_step.is_last():
-            action_step = policy.action(time_step)
-            time_step = environment.step(action_step.action)
-            episode_return += time_step.reward
-        total_return += episode_return
+    print("avg execute time ", (time.time()-time_start)/num_episodes/num_env)
 
-    print("avg execute time ", (time.time()-time_start)/num_episodes)
-
-    avg_return = total_return / num_episodes
+    avg_return = total_return / num_episodes /num_env
 
     return avg_return.numpy()[0]
 
@@ -232,6 +234,8 @@ if __name__ == '__main__':
 
     
     avg_return = compute_avg_return(tf_env, agent.policy, 5)
+    print('step = {0}: Average Return = {1}'.format(0, avg_return))
+
     returns = [avg_return]
 
     collect_steps_per_iteration = 1
@@ -251,7 +255,6 @@ if __name__ == '__main__':
     train_loss_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
     avf_return_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
     step_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
-    best_avg_return = -1000000
 
     for _ in range(batch_size):
         collect_step(tf_env, agent.collect_policy, replay_buffer)
@@ -289,9 +292,8 @@ if __name__ == '__main__':
             # Evaluate agent's performance every 1000 steps.
             if step % 1000 == 0:
                 avg_return = compute_avg_return(tf_env, agent.policy, 5)
-                if avg_return > best_avg_return:
-                    best_avg_return = avg_return
-                    save_agent("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy_' + str(best_avg_return), agent.policy)
+
+                save_agent("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy_' + str(avg_return), agent.policy)
 
                 print('step = {0}: Average Return = {1}'.format(step, avg_return))
                 returns.append(avg_return)

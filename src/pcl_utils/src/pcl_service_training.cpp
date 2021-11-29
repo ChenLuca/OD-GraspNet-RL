@@ -48,6 +48,7 @@
 
 #include "pcl_utils/setPointCloud.h"
 #include "pcl_utils/loadPointCloud.h"
+#include "pcl_utils/setZPassthrough.h"
 
 
 #include <iostream>
@@ -204,6 +205,9 @@ float *Grab_Cloud_viewpoint_Rotation = new float[3];
 
 int NumberOfLocalPCD = 20;
 int nowLocalPCD = 0;
+float max_execution_time = 0;
+float z_passthrough = 0.8;
+
 //==============================
 
 ////=========random=========
@@ -432,10 +436,15 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
       Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[2] = (int)input_cloud->points[i].r;
 
       z = input_cloud->points[i].z;
-      if (z > 0.0 && z < 3.86)
+      // if (z > 0.0 && z < 3.86)
+      // {
+      //   z = (z) / depth_interval;
+      //   Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
+      // }
+      if (z > 0.0 && z < 1.0)
       {
-      z = (z) / depth_interval;
-      Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
+        z = z/1.0*255;
+        Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
   }
@@ -952,7 +961,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
   do_Passthrough(cloud, filter_cloud, "x", -0.28, 0.35);
   do_Passthrough(filter_cloud, filter_cloud, "y", -1, 0.08);
-  do_Passthrough(filter_cloud, filter_cloud, "z", -1, 0.85);
+  do_Passthrough(filter_cloud, filter_cloud, "z", -1, z_passthrough);
   do_VoxelGrid(filter_cloud, filter_cloud);
   
 }
@@ -997,8 +1006,8 @@ bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Respon
   if (!ofs.is_open()) {
         cout << "Failed to open file.\n";
     } else {
-        ofs << grcnn_input.x + 190 << "\n";
-        ofs << grcnn_input.y + 110 << "\n";
+        ofs << grcnn_input.x << "\n";
+        ofs << grcnn_input.y << "\n";
         ofs << Angle_axis_rotation_approach;
         ofs.close();
   }
@@ -1023,6 +1032,14 @@ bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPoin
   return true;
 }
 
+bool do_setZPassthrough(pcl_utils::setZPassthrough::Request &req, pcl_utils::setZPassthrough::Response &res)
+{
+  z_passthrough = req.z_dist;
+
+  ROS_INFO("Set Z-axis Passthrough distance!");
+  res.back = 0;
+  return true;
+}
 
 bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
 {
@@ -1139,8 +1156,6 @@ void do_PointcloudProcess()
 
     grcnn_predict.x = grcnn_input.x;
     grcnn_predict.y = grcnn_input.y;
-    // grcnn_predict.x = 320;
-    // grcnn_predict.y = 260;
 
     oan_vector plane_coefficients_vector;
 
@@ -1429,7 +1444,14 @@ void do_PointcloudProcess()
   end_ = ros::WallTime::now();
   // print results
   double execution_time = (end_ - start_).toNSec() * 1e-6;
-  ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
+  if (execution_time > max_execution_time)
+  {
+    max_execution_time = execution_time;
+  }
+  // ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
+  // max_execution_time = max_execution_time -0.1;
+  // ROS_INFO_STREAM("max_execution_time time (ms): " << max_execution_time);
+
 }
 
 int main (int argc, char** argv)
@@ -1578,6 +1600,8 @@ int main (int argc, char** argv)
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
 
   ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud);
+
+  ros::ServiceServer set_z_passthrough_service = nh.advertiseService("/set_z_passthrough", do_setZPassthrough);
 
 
   ros::WallTime start_, end_;

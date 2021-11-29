@@ -70,6 +70,7 @@ add_service_files(
   snapshot.srv
   setPointCloud.srv
   loadPointCloud.srv
+  setZPassthrough.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -245,6 +246,10 @@ add_dependencies(set_Input_PointCloud ${catkin_EXPORTED_TARGETS})
 add_executable(load_Input_PointCloud src/load_Input_PointCloud.cpp)
 target_link_libraries(load_Input_PointCloud ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 add_dependencies(load_Input_PointCloud ${catkin_EXPORTED_TARGETS})
+
+add_executable(set_Z_Passthrough src/set_Z_Passthrough.cpp)
+target_link_libraries(set_Z_Passthrough ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+add_dependencies(set_Z_Passthrough ${catkin_EXPORTED_TARGETS})
 # endif()
 
 ## Add folders to be run by python nosetests

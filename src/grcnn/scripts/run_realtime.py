@@ -42,7 +42,7 @@ loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/tra
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_grcnn,
+    parser.add_argument('--network', type=str, default=loc_OD_ConvNet_v1_dilated,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -111,8 +111,8 @@ if __name__ == '__main__':
                     if gs is not None:
                         for g in gs:
                             grcnn_result_msg = grcnn_result()
-                            grcnn_result_msg.y = g.center[0]
-                            grcnn_result_msg.x = g.center[1]
+                            grcnn_result_msg.y = g.center[0] + 110
+                            grcnn_result_msg.x = g.center[1] + 190
                             grcnn_result_msg.angle = g.angle
                             grcnn_result_msg.length = g.length
                             grcnn_result_msg.width = g.width

@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     time.sleep(1)
 
-    env_utils.validate_py_environment(environment, episodes=5)
+    # env_utils.validate_py_environment(environment, episodes=5)
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
 
     saved_policy = tf.saved_model.load(policy_dir)
 
-    for _ in range(5):
+    while 1:
       time_step = tf_env.reset()
       total_reward = 0
       while not time_step.is_last():

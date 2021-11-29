@@ -116,7 +116,6 @@ class GraspEnv(py_environment.PyEnvironment):
 
         self.grab_depth_image = np.zeros((0,0,3), np.float32)
 
-
         self._episode_ended = False
 
         self._reward = 0 
@@ -128,7 +127,6 @@ class GraspEnv(py_environment.PyEnvironment):
         self.pointLikelihoos_right_finger = 0
         self.apporachLikelihood = 0
         self.NormalDepthNonZero =0
-
 
         self.rotate_x = 0 
         self.rotate_y = 0 
@@ -207,7 +205,6 @@ class GraspEnv(py_environment.PyEnvironment):
         except CvBridgeError as e:
             print(e)
 
-
     def grab_normal_depth_callback(self, image):
         try:
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis =-1)
@@ -252,13 +249,13 @@ class GraspEnv(py_environment.PyEnvironment):
 
         rotation = AngleAxis_rotation_msg()
 
-        rotation.x = 0#initial_angle * (random.random() - 0.5)
+        rotation.x = 0
         rotation.z = 0
-        rotation.y = 0#initial_angle * (random.random() - 0.5)
+        rotation.y = 0
 
         self.pub_AngleAxisRotation.publish(rotation)
 
-        time.sleep(0.03)
+        time.sleep(0.025)
         self._update_ROS_data()
         print("reset!")
         return ts.restart(self._state)
@@ -285,9 +282,6 @@ class GraspEnv(py_environment.PyEnvironment):
         rotation.y = y_action*rotation_angle_m
         rotation.x = x_action*rotation_angle_m
 
-        # print("rotation.y ", rotation.y)
-        # print("rotation.x ", rotation.x)
-        # print("======")
 
         self.pub_AngleAxisRotation.publish(rotation)
 
@@ -296,26 +290,20 @@ class GraspEnv(py_environment.PyEnvironment):
         # self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
         self._state["depth_grab"] = self.grab_normal_depth_image
 
-        # print("self._state[depth_grab].shape", self._state["depth_grab"].shape)
-
     def _update_reward(self):
-        self._reward = 50*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) - 1*(self.NormalDepthNonZero) + 20*(self.apporachLikelihood)#- self._step_counter
-        # print("self.pointLikelihoos_right_finger ", self.pointLikelihoos_right_finger)
-        # print("self.pointLikelihoos_left_finger ", self.pointLikelihoos_left_finger)
-        # print("self.NormalDepthNonZero ", self.NormalDepthNonZero)
-        # print("self._reward ", self._reward)
+        self._reward = 50*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) - 0.1*(self.NormalDepthNonZero) + 20*(self.apporachLikelihood)#- self._step_counter
 
     def _step(self, action):
 
         if self._episode_ended:
             return self.reset()
         
-        print("action: ", action)
+        # print("action: ", action)
         
         #action!
         self._rotate_grasp(action)
 
-        time.sleep(0.03)
+        time.sleep(0.025)
 
         self._update_ROS_data()
         self._update_reward()
@@ -325,9 +313,9 @@ class GraspEnv(py_environment.PyEnvironment):
             self._episode_ended = True
             self._step_counter = 0
             print("finger crash!")
-            return ts.termination(self._state, -100)
+            return ts.termination(self._state, -2000)
 
-        if (abs(self.rotate_x) > (math.pi*30)/180) or (abs(self.rotate_y) > (math.pi*30)/180):
+        if (abs(self.rotate_x) > (math.pi*60)/180) or (abs(self.rotate_y) > (math.pi*60)/180):
             self._episode_ended = True
             self._step_counter = 0
             print("out of angle!")
