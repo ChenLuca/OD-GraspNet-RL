@@ -125,8 +125,14 @@ class GraspEnv(py_environment.PyEnvironment):
         self._number_of_finger_grab_pointClouds = 0
         self.pointLikelihoos_left_finger = 0
         self.pointLikelihoos_right_finger = 0
+        self.pointLikelihoos_grab_cloud = 0
         self.apporachLikelihood = 0
         self.NormalDepthNonZero =0
+        self.OpenDepthNonZero =0
+
+        self.MaxNormalDepthNonZero = 1
+        self.MaxOpenDepthNonZero = 1
+        self.Max_number_of_grab_pointClouds = 1
 
         self.rotate_x = 0 
         self.rotate_y = 0 
@@ -163,8 +169,19 @@ class GraspEnv(py_environment.PyEnvironment):
 
         rospy.Subscriber("/NormaldepthNonZero", Float64, self.NormalDepthNonZero_callback)
 
+        rospy.Subscriber("/OpendepthNonZero", Float64, self.OpenDepthNonZero_callback)
+
+        rospy.Subscriber("/PointLikelihood/Grab_Cloud", Float64, self.pointLikelihoos_grab_cloud_callback)
+
         # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
         self.pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
+
+    def pointLikelihoos_grab_cloud_callback(self, num):
+        self.pointLikelihoos_grab_cloud = num.data
+        # print("self.pointLikelihoos_grab_cloud ", self.pointLikelihoos_grab_cloud)
+
+    def OpenDepthNonZero_callback(self, num):
+        self.OpenDepthNonZero = num.data
 
     def NormalDepthNonZero_callback(self, num):
         self.NormalDepthNonZero = num.data
@@ -257,7 +274,7 @@ class GraspEnv(py_environment.PyEnvironment):
 
         time.sleep(0.025)
         self._update_ROS_data()
-        print("reset!")
+        # print("reset!")
         return ts.restart(self._state)
     
     def _rotate_grasp(self, action_value):
@@ -291,7 +308,18 @@ class GraspEnv(py_environment.PyEnvironment):
         self._state["depth_grab"] = self.grab_normal_depth_image
 
     def _update_reward(self):
-        self._reward = 50*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) - 0.1*(self.NormalDepthNonZero) + 20*(self.apporachLikelihood)#- self._step_counter
+        if self.NormalDepthNonZero >  self.MaxNormalDepthNonZero:
+            self.MaxNormalDepthNonZero = self.NormalDepthNonZero
+
+        # if self.OpenDepthNonZero >  self.MaxOpenDepthNonZero:
+        #     self.MaxOpenDepthNonZero = self.OpenDepthNonZero
+
+        # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
+        #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
+        
+        self._reward = 0.5*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud
+                            # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
+                            # + 1.0*(self.apporachLikelihood) - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
 
     def _step(self, action):
 
@@ -312,19 +340,19 @@ class GraspEnv(py_environment.PyEnvironment):
         if self._number_of_finger_grab_pointClouds > 0:
             self._episode_ended = True
             self._step_counter = 0
-            print("finger crash!")
-            return ts.termination(self._state, -2000)
+            # print("finger crash!")
+            return ts.termination(self._state, -30)
 
         if (abs(self.rotate_x) > (math.pi*60)/180) or (abs(self.rotate_y) > (math.pi*60)/180):
             self._episode_ended = True
             self._step_counter = 0
             print("out of angle!")
-            return ts.termination(self._state, -100)
+            return ts.termination(self._state, -30)
 
         if self._step_counter > self._step_lengh:
             self._episode_ended = True
             self._step_counter = 0
-            print("out of step!")
+            # print("out of step!")
             return ts.termination(self._state, self._reward)
 
         else:

@@ -176,7 +176,7 @@ if __name__ == '__main__':
     
     preprocessing_layers = {
     'depth_grab': tf.keras.models.Sequential([ 
-        tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
+        tf.keras.layers.Conv2D(filters=25, kernel_size=(3, 3), activation='relu'),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.MaxPool2D(),
         tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'),
@@ -192,7 +192,7 @@ if __name__ == '__main__':
                     tf_env.action_spec(), 
                     preprocessing_layers=preprocessing_layers,
                     conv_layer_params=None, 
-                    fc_layer_params=(50, 50),
+                    fc_layer_params=(100, 50),
                     dropout_layer_params=None, 
                     activation_fn=tf.keras.activations.relu,
                     kernel_initializer=None, 
@@ -252,9 +252,9 @@ if __name__ == '__main__':
     AVG_RETURN = []
     STEP = []
 
-    train_loss_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
-    avf_return_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
-    step_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
+    train_loss_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
+    avf_return_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
+    step_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
 
     for _ in range(batch_size):
         collect_step(tf_env, agent.collect_policy, replay_buffer)
@@ -293,7 +293,7 @@ if __name__ == '__main__':
             if step % 1000 == 0:
                 avg_return = compute_avg_return(tf_env, agent.policy, 5)
 
-                save_agent("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy_' + str(avg_return), agent.policy)
+                save_agent("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy_' + str(step/1000) + "_" + str(avg_return), agent.policy)
 
                 print('step = {0}: Average Return = {1}'.format(step, avg_return))
                 returns.append(avg_return)

@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    policy_dir = os.path.join("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy')
+    policy_dir = os.path.join("./src/rl_training/scripts/trained-model/C51/", 'C51_policy_53.0_8.002437')
 
     saved_policy = tf.saved_model.load(policy_dir)
 
@@ -97,5 +97,5 @@ if __name__ == '__main__':
         action_step = saved_policy.action(time_step)
         time_step = tf_env.step(action_step.action)
         total_reward += time_step.reward.numpy()
-        print("time_step reward: ", time_step.reward.numpy())
+        # print("time_step reward: ", time_step.reward.numpy())
       print("total_reward: ", total_reward)

@@ -26,7 +26,7 @@ for i in range(len(AVG_RETURN)):
 if (sys.argv[1]=="l"):
     ax = plt.axes()
     ax.plot(TRAIN_LOSS_STEP, TRAIN_LOSS)
-    ax.set(xlim=(0, 200000), xlabel='step', ylabel='loss', title='TRAIN_LOSS')
+    ax.set(xlim=(0, 2000000), xlabel='step', ylabel='loss', title='TRAIN_LOSS')
     for i in range(len(TRAIN_LOSS_STEP)):
     	print("STEP ", TRAIN_LOSS_STEP[i], ", TRAIN_LOSS ",  TRAIN_LOSS[i])
     plt.show()
@@ -34,7 +34,7 @@ if (sys.argv[1]=="l"):
 elif (sys.argv[1]=="r"):
     bx = plt.axes()
     bx.plot(AVG_RETURN_STEP, AVG_RETURN)
-    bx.set(xlim=(0, 200000), xlabel='step', ylabel='average return', title='AVG_RETURN')
+    bx.set(xlim=(0, 2000000), xlabel='step', ylabel='average return', title='AVG_RETURN')
     for i in range(len(AVG_RETURN_STEP)):
     	print("STEP ", AVG_RETURN_STEP[i], ", AVG_RETURN ",  AVG_RETURN[i])
     plt.show()

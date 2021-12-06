@@ -67,14 +67,15 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNumFingerGrabPoint, pubGrabPointCloudsLeft, pubGrabPointCloudsRight, pubGrabPointCloudsLeftNormal, pubGrabPointCloudsRightNormal,
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNumFingerGrabPoint, pubGrabPointCloudsLeft, pubGrabPointCloudsRight, pubGrabPointCloudsLeftNormal, pubGrabPointCloudsRightNormal, 
+               pubGrabPointCloudsNormal,
                pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal, 
                pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud,
                pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud,
                pubRightFingerPoint,
-               pub_pose_left, pub_pose_right,
-               pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood,
-               pubNormaldepthNonZero,
+               pub_pose_left, pub_pose_right, pub_pose_grab,
+               pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood, pubNormalLikelihood,
+               pubNormaldepthNonZero, pubOpendepthNonZero,
                pubNowCloud;
 
 //image publish
@@ -984,7 +985,7 @@ string SaveImage_Counter_Wrapper(int num, int object_number)
 
 bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
 {
-  string Save_Data_path = "/home/ur5/datasets/my_grasp_dataset/";
+  string Save_Data_path = "/home/luca/datasets/my_grasp_dataset/";
   string Name_pcd = "pcd";
   string Name_RGB_Image_root = "r.png";
   string Name_Depth_Image_root = "d.tiff";
@@ -1043,7 +1044,7 @@ bool do_setZPassthrough(pcl_utils::setZPassthrough::Request &req, pcl_utils::set
 
 bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
 {
-  string Load_File_path = "/home/ur5/datasets/GraspPointDataset/";
+  string Load_File_path = "/home/luca/datasets/GraspPointDataset/";
   string Name_pcd = "pcd99";
   string Name_PCD_root = ".pcd";
   string PCD_File_Name;
@@ -1231,6 +1232,50 @@ void do_PointcloudProcess()
       pcl::toROSMsg(*grab_cloud_right, grab_output_right);
       grab_output_right.header.frame_id = "depth_camera_link";
       pubGrabPointCloudsRight.publish(grab_output_right);
+
+      //Grab cloud normal
+      if (grab_cloud->size()!= 0)
+      {
+        pcl::PointCloud<pcl::PointNormal>::Ptr grab_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+        do_calculate_normal(grab_cloud, grab_cloud_normal);
+        pcl_utils::coordinate_normal object_normal_grab;
+        object_normal_grab = average_normal(grab_cloud, grab_cloud_normal);
+        pubGrabPointCloudsNormal.publish(object_normal_grab);
+
+        geometry_msgs::PoseStamped object_pose;
+
+        object_pose.header.frame_id = "depth_camera_link";
+        object_pose.header.stamp = ros::Time::now();;
+        object_pose.header.seq = 1;
+
+
+        // extracting surface normals
+        tf::Vector3 grab_axis_vector(object_normal_grab.normal_x, object_normal_grab.normal_y, object_normal_grab.normal_z);
+        tf::Vector3 grab_up_vector(1.0, 0.0, 0.0);
+
+        tf::Vector3 grab_right_vector = grab_axis_vector.cross(grab_up_vector);
+        grab_right_vector.normalized();
+        tf::Quaternion grab_q(grab_right_vector, -1.0*acos(grab_axis_vector.dot(grab_up_vector)));
+        grab_q.normalize();
+
+        geometry_msgs::Quaternion grab_msg;
+
+        tf::quaternionTFToMsg(grab_q, grab_msg);
+
+        object_pose.pose.orientation = grab_msg;
+        object_pose.pose.position.x = object_normal_grab.x;
+        object_pose.pose.position.y = object_normal_grab.y;
+        object_pose.pose.position.z = object_normal_grab.z;
+
+        pub_pose_grab.publish (object_pose);
+
+        float normal_likelihood = -1.0 * (plane_coefficients_vector.approach_vector(0) * object_normal_grab.normal_x 
+                                        + plane_coefficients_vector.approach_vector(1) * object_normal_grab.normal_y 
+                                        + plane_coefficients_vector.approach_vector(2) * object_normal_grab.normal_z);
+        std_msgs::Float64 normal_likelihood_msg;
+        normal_likelihood_msg.data = normal_likelihood;
+        pubNormalLikelihood.publish(normal_likelihood_msg);                                
+      }
       
       //left finger====================================================================
       if(grab_cloud_left->size()!= 0)
@@ -1401,12 +1446,17 @@ void do_PointcloudProcess()
       cv::resize(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, cv_downsize, cv::INTER_AREA);
 
       int NormaldepthNonZeroValue = cv::countNonZero(Grab_Cloud_Normal_Depth_Image);
+      int OpendepthNonZeroValue = cv::countNonZero(Grab_Cloud_Open_Depth_Image);
 
       // cout << "Number of non-zero image Grab_Cloud_Normal_Depth_Image: " << NormaldepthNonZeroValue << endl;
 
       std_msgs::Float64 NormaldepthNonZeroValue_msg;
       NormaldepthNonZeroValue_msg.data = NormaldepthNonZeroValue;
       pubNormaldepthNonZero.publish(NormaldepthNonZeroValue_msg);
+
+      std_msgs::Float64 OpendepthNonZeroValue_msg;
+      OpendepthNonZeroValue_msg.data = OpendepthNonZeroValue;
+      pubOpendepthNonZero.publish(OpendepthNonZeroValue_msg);
 
       //=== publish mapping image === [begin]
       sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
@@ -1539,9 +1589,13 @@ int main (int argc, char** argv)
 
   pubGrabPointCloudsRight = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds_Right", 30);
 
+  pubGrabPointCloudsNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Normal", 1);
+
   pubGrabPointCloudsLeftNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Left_Normal", 1);
 
   pubGrabPointCloudsRightNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Right_Normal", 1);
+
+  pub_pose_grab = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/grab", 1);
 
   pub_pose_left = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/left", 1);
   
@@ -1553,6 +1607,8 @@ int main (int argc, char** argv)
   // Create ROS pointcloud publisher for the number of finger grab point
   pubNumFingerGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Finger_Grab_PointClouds", 30);
 
+  pubNormalLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Grab_Cloud", 30);
+
   pubLeftLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Left_Finger", 30);
 
   pubRightLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Right_Finger", 30);
@@ -1560,6 +1616,8 @@ int main (int argc, char** argv)
   pubApproachLikelihood = nh.advertise<std_msgs::Float64> ("/ApporachLikelihood", 30);
 
   pubNormaldepthNonZero = nh.advertise<std_msgs::Float64> ("/NormaldepthNonZero", 30);
+
+  pubOpendepthNonZero = nh.advertise<std_msgs::Float64> ("/OpendepthNonZero", 30);
 
   // Create ROS pointcloud publisher for projected normal vector plane cloud
   pubProjectNormalVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
