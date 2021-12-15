@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  sensor_msgs
   message_generation
 )
 
@@ -51,12 +52,14 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
    FILES
    AngleAxis_rotation_msg.msg
+   RL_Env_msg.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(
    FILES
    loadPointCloud.srv
+   get_RL_Env.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -69,6 +72,7 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
+   sensor_msgs
    std_msgs
 )
 

@@ -12,7 +12,6 @@ import math
 import pickle
 import random 
 import tensorflow as tf
-import time
 
 def solve_cudnn_error():
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -33,6 +32,7 @@ from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 from rl_training.msg import AngleAxis_rotation_msg
 from rl_training.srv import loadPointCloud
+from rl_training.srv import get_RL_Env
 import time
 
 import sensor_msgs.point_cloud2 as pc2
@@ -41,6 +41,7 @@ import struct
 
 from std_msgs.msg import Int64, Float64
 from cv_bridge import CvBridge, CvBridgeError
+from pcl_utils.msg import RL_Env_msg
 
 import abc
 import tf_agents
@@ -123,8 +124,8 @@ class GraspEnv(py_environment.PyEnvironment):
         self._step_lengh = 9
         self._number_of_grab_pointClouds = 0
         self._number_of_finger_grab_pointClouds = 0
-        self.pointLikelihoos_left_finger = 0
-        self.pointLikelihoos_right_finger = 0
+        self.pointLikelihood_left_finger = 0
+        self.pointLikelihood_right_finger = 0
         self.pointLikelihoos_grab_cloud = 0
         self.apporachLikelihood = 0
         self.NormalDepthNonZero =0
@@ -139,42 +140,91 @@ class GraspEnv(py_environment.PyEnvironment):
         self.rotate_z = 0 
 
         # Create ROS subscriber for number of pointcloud in gripper working area (the reward of reinforcement learning agent...?)
-        rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, self.number_of_grab_pointClouds_callback)
+        # rospy.Subscriber("/Number_of_Grab_PointClouds", Int64, self.number_of_grab_pointClouds_callback)
 
         # Create ROS subscriber for mapping rgb image from gripper axis of normal vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_normal_rgb", Image, self.grab_normal_rgb_callback)
+        # rospy.Subscriber("/projected_image/grab_normal_rgb", Image, self.grab_normal_rgb_callback)
 
         # Create ROS subscriber for mapping rgb image from gripper axis of approach vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_approach_rgb", Image, self.grab_approach_rgb_callback)
+        # rospy.Subscriber("/projected_image/grab_approach_rgb", Image, self.grab_approach_rgb_callback)
 
         # Create ROS subscriber for mapping rgb image from gripper axis of open vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_open_rgb", Image, self.grab_open_rgb_callback)
+        # rospy.Subscriber("/projected_image/grab_open_rgb", Image, self.grab_open_rgb_callback)
 
         # Create ROS subscriber for mapping depth image from gripper axis of normal vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_normal_depth", Image, self.grab_normal_depth_callback)
+        # rospy.Subscriber("/projected_image/grab_normal_depth", Image, self.grab_normal_depth_callback)
 
         # Create ROS subscriber for mapping depth image from gripper axis of approach vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_approach_depth", Image, self.grab_approach_depth_callback)
+        # rospy.Subscriber("/projected_image/grab_approach_depth", Image, self.grab_approach_depth_callback)
 
         # Create ROS subscriber for mapping depth image from gripper axis of open vector (the state of reinforcement learning agent)
-        rospy.Subscriber("/projected_image/grab_open_depth", Image, self.grab_open_depth_callback)
+        # rospy.Subscriber("/projected_image/grab_open_depth", Image, self.grab_open_depth_callback)
 
-        rospy.Subscriber("/Number_of_Finger_Grab_PointClouds", Int64, self.finger_point_callback)
+        # rospy.Subscriber("/Number_of_Finger_Grab_PointClouds", Int64, self.finger_point_callback)
 
-        rospy.Subscriber("/PointLikelihood/Left_Finger", Float64, self.pointLikelihoos_left_finger_callback)
+        # rospy.Subscriber("/PointLikelihood/Left_Finger", Float64, self.pointLikelihood_left_finger_callback)
 
-        rospy.Subscriber("/PointLikelihood/Right_Finger", Float64, self.pointLikelihoos_right_finger_callback)
+        # rospy.Subscriber("/PointLikelihood/Right_Finger", Float64, self.pointLikelihood_right_finger_callback)
 
-        rospy.Subscriber("/ApporachLikelihood", Float64, self.apporachLikelihood_callback)
+        # rospy.Subscriber("/ApporachLikelihood", Float64, self.apporachLikelihood_callback)
 
-        rospy.Subscriber("/NormaldepthNonZero", Float64, self.NormalDepthNonZero_callback)
+        # rospy.Subscriber("/NormaldepthNonZero", Float64, self.NormalDepthNonZero_callback)
 
-        rospy.Subscriber("/OpendepthNonZero", Float64, self.OpenDepthNonZero_callback)
+        # rospy.Subscriber("/OpendepthNonZero", Float64, self.OpenDepthNonZero_callback)
 
-        rospy.Subscriber("/PointLikelihood/Grab_Cloud", Float64, self.pointLikelihoos_grab_cloud_callback)
+        # rospy.Subscriber("/PointLikelihood/Grab_Cloud", Float64, self.pointLikelihoos_grab_cloud_callback)
+
+        # rospy.Subscriber("/RL_Env", RL_Env_msg, self.RL_Env_callback)
+        
+        self.handle_get_RL_Env = rospy.ServiceProxy('/get_RL_Env', get_RL_Env)
 
         # Create ROS publisher for rotate gripper axis of normal, approach and open vector (the actions of reinforcement learning agent)
         self.pub_AngleAxisRotation = rospy.Publisher('/grasp_training/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
+
+    def get_RL_Env_data(self, req):
+        # print("Request RL Env !")
+        rospy.wait_for_service('/get_RL_Env')
+        try:
+            res = self.handle_get_RL_Env(req)
+            self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+            self.apporachLikelihood = res.state.approach_likelihood_msg
+            self.pointLikelihood_right_finger = res.state.right_likelihood_msg
+            self.pointLikelihood_left_finger = res.state.left_likelihood_msg
+            self.NormalDepthNonZero = res.state.NormaldepthNonZeroValue_msg
+            self.pointLikelihoos_grab_cloud = res.state.normal_likelihood_msg
+            self._number_of_grab_pointClouds = res.state.grab_point_num
+            self._number_of_finger_grab_pointClouds = res.state.finger_grab_point_num
+
+            # cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_normal_depth_image', self.grab_normal_depth_image)
+            # cv2.waitKey(1)
+            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
+            # print("self.apporachLikelihood ", self.apporachLikelihood)
+            # print("self.pointLikelihood_right_finger ", self.pointLikelihood_right_finger)
+            # print("self.pointLikelihood_left_finger ", self.pointLikelihood_left_finger)
+            # print("self.NormalDepthNonZero ", self.NormalDepthNonZero)
+            # print("self.pointLikelihoos_grab_cloud ", self.pointLikelihoos_grab_cloud)
+            # print("self._number_of_grab_pointClouds ", self._number_of_grab_pointClouds)
+            # print("self._number_of_finger_grab_pointClouds ", self._number_of_finger_grab_pointClouds)
+            
+
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
+    # def RL_Env_callback(self, data):
+    #     self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(data.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+    #     self.apporachLikelihood = data.approach_likelihood_msg
+    #     self.pointLikelihood_right_finger = data.right_likelihood_msg
+    #     self.pointLikelihood_left_finger = data.left_likelihood_msg
+    #     self.NormalDepthNonZero = data.NormaldepthNonZeroValue_msg
+    #     self.pointLikelihoos_grab_cloud = data.normal_likelihood_msg
+    #     self._number_of_grab_pointClouds = data.grab_point_num
+    #     self._number_of_finger_grab_pointClouds = data.finger_grab_point_num
+    #     cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
+    #     cv2.imshow('grab_normal_depth_image', self.image)
+    #     cv2.waitKey(1)
+    #     print("self.image.shape ", self.image.shape)
+
 
     def pointLikelihoos_grab_cloud_callback(self, num):
         self.pointLikelihoos_grab_cloud = num.data
@@ -189,11 +239,11 @@ class GraspEnv(py_environment.PyEnvironment):
     def apporachLikelihood_callback(self, num):
         self.apporachLikelihood = num.data
 
-    def pointLikelihoos_left_finger_callback(self, num):
-        self.pointLikelihoos_left_finger = num.data
+    def pointLikelihood_left_finger_callback(self, num):
+        self.pointLikelihood_left_finger = num.data
 
-    def pointLikelihoos_right_finger_callback(self, num):
-        self.pointLikelihoos_right_finger = num.data
+    def pointLikelihood_right_finger_callback(self, num):
+        self.pointLikelihood_right_finger = num.data
 
     def finger_point_callback(self, num):
         self._number_of_finger_grab_pointClouds = num.data
@@ -272,7 +322,7 @@ class GraspEnv(py_environment.PyEnvironment):
 
         self.pub_AngleAxisRotation.publish(rotation)
 
-        time.sleep(0.025)
+        # time.sleep(0.025)
         self._update_ROS_data()
         # print("reset!")
         return ts.restart(self._state)
@@ -304,8 +354,14 @@ class GraspEnv(py_environment.PyEnvironment):
 
     def _update_ROS_data(self):
 
+        # start_time = time.time()
+        self.get_RL_Env_data(1)
+        # print("--- %s seconds ---" % (time.time() - start_time))
+
         # self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
         self._state["depth_grab"] = self.grab_normal_depth_image
+
+        self._update_reward()
 
     def _update_reward(self):
         if self.NormalDepthNonZero >  self.MaxNormalDepthNonZero:
@@ -317,9 +373,9 @@ class GraspEnv(py_environment.PyEnvironment):
         # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
         #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
         
-        self._reward = 0.5*(self.pointLikelihoos_right_finger + self.pointLikelihoos_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud
+        self._reward = 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + 1.0*(self.apporachLikelihood)
                             # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
-                            # + 1.0*(self.apporachLikelihood) - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
+                            # - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
 
     def _step(self, action):
 
@@ -331,10 +387,10 @@ class GraspEnv(py_environment.PyEnvironment):
         #action!
         self._rotate_grasp(action)
 
-        time.sleep(0.025)
+        # time.sleep(0.025)
 
         self._update_ROS_data()
-        self._update_reward()
+        # self._update_reward()
         self._step_counter = self._step_counter +1
 
         if self._number_of_finger_grab_pointClouds > 0:

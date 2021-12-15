@@ -205,7 +205,7 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     global_step = tf.compat.v1.train.get_or_create_global_step()
     start_epsilon = 0.1
-    n_of_steps = 500000
+    n_of_steps = 100000
     end_epsilon = 0.0001
     epsilon = tf.compat.v1.train.polynomial_decay(
         start_epsilon,

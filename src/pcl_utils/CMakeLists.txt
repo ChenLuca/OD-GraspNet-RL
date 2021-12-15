@@ -62,6 +62,7 @@ add_message_files(
    grcnn_result.msg
    AngleAxis_rotation_msg.msg
    coordinate_normal.msg
+   RL_Env_msg.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -71,6 +72,7 @@ add_service_files(
   setPointCloud.srv
   loadPointCloud.srv
   setZPassthrough.srv
+  get_RL_Env.srv
 )
 
 ## Generate actions in the 'action' folder

@@ -1,0 +1,8 @@
+sensor_msgs/Image grab_normal_depth_msg
+float64 approach_likelihood_msg
+float64 right_likelihood_msg
+float64 left_likelihood_msg
+float64 NormaldepthNonZeroValue_msg
+float64 normal_likelihood_msg
+int64 grab_point_num
+int64 finger_grab_point_num

@@ -14,6 +14,7 @@
 #include "pcl_utils/grcnn_result.h"
 #include "pcl_utils/AngleAxis_rotation_msg.h"
 #include "pcl_utils/coordinate_normal.h"
+#include "pcl_utils/RL_Env_msg.h"
 
 
 #include<opencv2/core/core.hpp>
@@ -50,6 +51,7 @@
 #include "pcl_utils/loadPointCloud.h"
 #include "pcl_utils/setZPassthrough.h"
 
+#include "pcl_utils/get_RL_Env.h"
 
 #include <iostream>
 #include <fstream>
@@ -76,7 +78,8 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNum
                pub_pose_left, pub_pose_right, pub_pose_grab,
                pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood, pubNormalLikelihood,
                pubNormaldepthNonZero, pubOpendepthNonZero,
-               pubNowCloud;
+               pubNowCloud,
+               pubRL_Env;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -759,7 +762,7 @@ pcl_utils::coordinate_normal  average_normal(pcl::PointCloud<pcl::PointXYZRGB>::
 
 
 bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
-                                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point, oan_vector &output_oan_vector)
+                                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point, oan_vector &output_oan_vector, float& Grap_Point_Num, float& Finger_Grap_Point_Num)
 {
   Eigen::Vector3d open_vector(1, 0, 0);
   Eigen::Vector3d approach_vector(0, 0, 1);
@@ -860,9 +863,10 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       finger_grab_point_num.data = number_of_point_finger - number_of_point;
 
       pubNumGrabPoint.publish(grab_point_num);
-
       pubNumFingerGrabPoint.publish(finger_grab_point_num);
-      
+
+      Grap_Point_Num = number_of_point;
+      Finger_Grap_Point_Num = number_of_point_finger - number_of_point;
       //=========rviz marker=========
       open_arrow.header.stamp = ros::Time();
       open_arrow.pose.position.x = point_x;
@@ -1102,7 +1106,7 @@ bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadP
   return true;
 }
 
-void do_PointcloudProcess()
+pcl_utils::RL_Env_msg do_PointcloudProcess()
 {
   ros::WallTime start_, end_;
   start_ = ros::WallTime::now();
@@ -1121,6 +1125,7 @@ void do_PointcloudProcess()
   viewpoint_rotation[0] = 0.0;
   viewpoint_rotation[1] = 0.0;
   viewpoint_rotation[2] = 0.0;
+
 
 
   if(filter_cloud->size()!=0)
@@ -1146,9 +1151,12 @@ void do_PointcloudProcess()
     //=== Get projected rgb & depth image form pointcloud === [end]
   }
   
+  pcl_utils::RL_Env_msg RL_Env;
+
 
   if(now_cloud->size()!=0)
   {
+
     //=== Get grab pointclout & count it's number === [begin]
     float grasp_angle = grcnn_input.angle;
     grasp_angle = 0;
@@ -1169,9 +1177,14 @@ void do_PointcloudProcess()
 
     do_PerspectiveProjection(now_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, now_cloud_PwPs, fx, fy, cx, cy);
 
-    if(do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector))
+    float Grap_Point_Num, Finger_Grap_Point_Num;
+    
+    if(do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector, Grap_Point_Num, Finger_Grap_Point_Num))
     {
       float *Rotate_angle = new float[3];
+
+      RL_Env.grab_point_num = Grap_Point_Num;
+      RL_Env.finger_grab_point_num = Finger_Grap_Point_Num;
 
       Rotate_angle[0] = -1 * Angle_axis_rotation_open;  //X axis
       Rotate_angle[1] = -1 * Angle_axis_rotation_normal;  //Y axis
@@ -1248,7 +1261,6 @@ void do_PointcloudProcess()
         object_pose.header.stamp = ros::Time::now();;
         object_pose.header.seq = 1;
 
-
         // extracting surface normals
         tf::Vector3 grab_axis_vector(object_normal_grab.normal_x, object_normal_grab.normal_y, object_normal_grab.normal_z);
         tf::Vector3 grab_up_vector(1.0, 0.0, 0.0);
@@ -1272,9 +1284,11 @@ void do_PointcloudProcess()
         float normal_likelihood = -1.0 * (plane_coefficients_vector.approach_vector(0) * object_normal_grab.normal_x 
                                         + plane_coefficients_vector.approach_vector(1) * object_normal_grab.normal_y 
                                         + plane_coefficients_vector.approach_vector(2) * object_normal_grab.normal_z);
+
         std_msgs::Float64 normal_likelihood_msg;
         normal_likelihood_msg.data = normal_likelihood;
-        pubNormalLikelihood.publish(normal_likelihood_msg);                                
+        RL_Env.normal_likelihood_msg = normal_likelihood;
+        pubNormalLikelihood.publish(normal_likelihood_msg);
       }
       
       //left finger====================================================================
@@ -1324,6 +1338,7 @@ void do_PointcloudProcess()
 
         std_msgs::Float64 left_likelihood_msg;
         left_likelihood_msg.data = left_likelihood;
+        RL_Env.left_likelihood_msg = left_likelihood;
         pubLeftLikelihood.publish(left_likelihood_msg);
 
       }
@@ -1375,6 +1390,7 @@ void do_PointcloudProcess()
         
         std_msgs::Float64 right_likelihood_msg;
         right_likelihood_msg.data = right_likelihood;
+        RL_Env.right_likelihood_msg = right_likelihood;
         pubRightLikelihood.publish(right_likelihood_msg);
       }
 
@@ -1386,6 +1402,7 @@ void do_PointcloudProcess()
         cout << " approach_likelihood Not a Number FOUNDED!!!" <<endl;
       }
       approach_likelihood_msg.data = approach_likelihood;
+      RL_Env.approach_likelihood_msg = approach_likelihood;
       //!!!!!!!!!!!!!!!!!
       pubApproachLikelihood.publish(approach_likelihood_msg);
 
@@ -1452,6 +1469,7 @@ void do_PointcloudProcess()
 
       std_msgs::Float64 NormaldepthNonZeroValue_msg;
       NormaldepthNonZeroValue_msg.data = NormaldepthNonZeroValue;
+      RL_Env.NormaldepthNonZeroValue_msg = NormaldepthNonZeroValue;
       pubNormaldepthNonZero.publish(NormaldepthNonZeroValue_msg);
 
       std_msgs::Float64 OpendepthNonZeroValue_msg;
@@ -1488,9 +1506,13 @@ void do_PointcloudProcess()
       ros::Time grab_normal_depth_begin = ros::Time::now();
       grab_normal_depth_msg->header.stamp = grab_normal_depth_begin;
       pubProject_Grab_Normal_Depth_Image.publish(grab_normal_depth_msg);
+
+      RL_Env.grab_normal_depth_msg = *grab_normal_depth_msg;
       //=== publish image === [end]
     }
+    // pubRL_Env.publish(RL_Env);
   }
+
   end_ = ros::WallTime::now();
   // print results
   double execution_time = (end_ - start_).toNSec() * 1e-6;
@@ -1498,10 +1520,19 @@ void do_PointcloudProcess()
   {
     max_execution_time = execution_time;
   }
+
+  return RL_Env;
   // ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
   // max_execution_time = max_execution_time -0.1;
   // ROS_INFO_STREAM("max_execution_time time (ms): " << max_execution_time);
+}
 
+bool do_get_RL_Env(pcl_utils::get_RL_Env::Request &req, pcl_utils::get_RL_Env::Response &res)
+{
+  res.state = do_PointcloudProcess();
+  // cout << "req" << req.call;
+
+  return true;
 }
 
 int main (int argc, char** argv)
@@ -1639,6 +1670,8 @@ int main (int argc, char** argv)
 
   pubNowCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Now_Clouds", 30);
 
+  pubRL_Env = nh.advertise<pcl_utils::RL_Env_msg> ("/RL_Env", 30);
+
 
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
@@ -1661,17 +1694,21 @@ int main (int argc, char** argv)
 
   ros::ServiceServer set_z_passthrough_service = nh.advertiseService("/set_z_passthrough", do_setZPassthrough);
 
+  ros::ServiceServer RL_Env_service = nh.advertiseService("/get_RL_Env", do_get_RL_Env);
+
 
   ros::WallTime start_, end_;
 
-  ros::Rate loop_rate(100);
+  // ros::Rate loop_rate(100);
 
-  while(ros::ok())
-  {
-    do_PointcloudProcess();
-    ros::spinOnce();
-    // loop_rate.sleep();
-  }
+  // while(ros::ok())
+  // {
+  //   do_PointcloudProcess();
+  //   ros::spinOnce();
+  //   // loop_rate.sleep();
+  // }
+
+  ros::spin();
 
   return 0;
 }
