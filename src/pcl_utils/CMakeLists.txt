@@ -59,7 +59,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   grcnn_result.msg
+   dl_grasp_result.msg
    AngleAxis_rotation_msg.msg
    coordinate_normal.msg
    RL_Env_msg.msg
@@ -225,17 +225,9 @@ include_directories(
 add_executable(example src/example.cpp)
 target_link_libraries(example ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 
-add_executable(pcl_server src/pcl_server.cpp)
-target_link_libraries(pcl_server ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
-add_dependencies(pcl_server ${catkin_EXPORTED_TARGETS})
-
 add_executable(pcl_service src/pcl_service.cpp)
 target_link_libraries(pcl_service ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
 add_dependencies(pcl_service ${catkin_EXPORTED_TARGETS})
-
-add_executable(pcl_service_training src/pcl_service_training.cpp)
-target_link_libraries(pcl_service_training ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
-add_dependencies(pcl_service_training ${catkin_EXPORTED_TARGETS})
 
 add_executable(get_cornell_data src/get_cornell_data.cpp)
 target_link_libraries(get_cornell_data ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})

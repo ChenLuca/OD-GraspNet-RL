@@ -42,7 +42,7 @@ loc_OD_ConvNet_3_csp = "/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/tr
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_grcnn,
+    parser.add_argument('--network', type=str, default=loc_OD_ConvNet_v1_dilated,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     args = parse_args()
 
-    pub_grcnn_result = rospy.Publisher('/dl_grasp/result', dl_grasp_result, queue_size=10)
+    pub_osa_result = rospy.Publisher('/dl_grasp/result', dl_grasp_result, queue_size=10)
     rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
     pub_AngleAxisRotation = rospy.Publisher('/2D_Predict/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
@@ -110,13 +110,13 @@ if __name__ == '__main__':
 
                     if gs is not None:
                         for g in gs:
-                            grcnn_result_msg = dl_grasp_result()
-                            grcnn_result_msg.y = g.center[0] + 110
-                            grcnn_result_msg.x = g.center[1] + 190
-                            grcnn_result_msg.angle = g.angle
-                            grcnn_result_msg.length = g.length
-                            grcnn_result_msg.width = g.width
-                            pub_grcnn_result.publish(grcnn_result_msg)
+                            osa_result_msg = dl_grasp_result()
+                            osa_result_msg.y = g.center[0] + 110
+                            osa_result_msg.x = g.center[1] + 190
+                            osa_result_msg.angle = g.angle
+                            osa_result_msg.length = g.length
+                            osa_result_msg.width = g.width
+                            pub_osa_result.publish(osa_result_msg)
 
                             print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
 

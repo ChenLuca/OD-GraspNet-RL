@@ -1,4 +1,6 @@
 sensor_msgs/Image grab_normal_depth_msg
+sensor_msgs/Image grab_open_depth_msg
+sensor_msgs/Image grab_approach_depth_msg
 float64 approach_likelihood_msg
 float64 right_likelihood_msg
 float64 left_likelihood_msg

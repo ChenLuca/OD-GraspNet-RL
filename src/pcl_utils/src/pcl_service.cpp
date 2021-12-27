@@ -11,9 +11,10 @@
 #include "std_msgs/Float64.h"
 
 
-#include "pcl_utils/grcnn_result.h"
+#include "pcl_utils/dl_grasp_result.h"
 #include "pcl_utils/AngleAxis_rotation_msg.h"
 #include "pcl_utils/coordinate_normal.h"
+#include "pcl_utils/RL_Env_msg.h"
 
 
 #include<opencv2/core/core.hpp>
@@ -47,6 +48,10 @@
 #include "pcl_utils/snapshot.h"
 
 #include "pcl_utils/setPointCloud.h"
+#include "pcl_utils/loadPointCloud.h"
+#include "pcl_utils/setZPassthrough.h"
+
+#include "pcl_utils/get_RL_Env.h"
 
 #include <iostream>
 #include <fstream>
@@ -64,14 +69,17 @@ using namespace std;
 
 //=========Define ROS parameters=========
 //pointcloud publish
-ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNumFingerGrabPoint, pubGrabPointCloudsLeft, pubGrabPointCloudsRight, pubGrabPointCloudsLeftNormal, pubGrabPointCloudsRightNormal,
+ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNumFingerGrabPoint, pubGrabPointCloudsLeft, pubGrabPointCloudsRight, pubGrabPointCloudsLeftNormal, pubGrabPointCloudsRightNormal, 
+               pubGrabPointCloudsNormal,
                pubAngleAxisOpen, pubAngleAxisApproach, pubAngleAxisNormal, 
                pubProjectNormalVectorPlaneCloud, pubProjectApproachVectorPlaneCloud, pubProjectOpenVectorPlaneCloud,
                pubRetransformProjectNormalVectorPlaneCloud, pubRetransformProjectApproachVectorPlaneCloud, pubRetransformProjectOpenVectorPlaneCloud,
                pubRightFingerPoint,
-               pub_pose_left, pub_pose_right,
-               pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood,
-               pubNormaldepthNonZero;
+               pub_pose_left, pub_pose_right, pub_pose_grab,
+               pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood, pubNormalLikelihood,
+               pubNormaldepthNonZero, pubOpendepthNonZero,
+               pubNowCloud,
+               pubRL_Env;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -90,7 +98,8 @@ sensor_msgs::PointCloud2 Filter_output, grab_output, grab_output_left, grab_outp
                          project_open_vector_plane_output,
                          retransform_project_normal_vector_plane_output, 
                          retransform_project_approach_vector_plane_output, 
-                         retransform_project_open_vector_plane_output;
+                         retransform_project_open_vector_plane_output,
+                         now_cloud_output;
 
 
 visualization_msgs::Marker open_arrow, normal_arrow, approach_arrow, right_finger_point;
@@ -188,8 +197,8 @@ double cx = 325.506, cy = 332.234, fx = 503.566, fy = 503.628;
 //Grab pointcloud Rotation
 float Angle_axis_rotation_open = 0.0, Angle_axis_rotation_approach = 0.0, Angle_axis_rotation_normal = 0.0;
 
-//GRCNN input
-pcl_utils::grcnn_result grcnn_input;
+//DL Grasp input
+pcl_utils::dl_grasp_result dl_grasp_input;
 
 //viewpoint transform
 float *viewpoint_translation = new float[3];
@@ -197,6 +206,12 @@ float *viewpoint_rotation = new float[3];
 float *grasp_3D = new float[3];
 float *Grab_Cloud_viewpoint_Translation = new float[3];
 float *Grab_Cloud_viewpoint_Rotation = new float[3];
+
+int NumberOfLocalPCD = 20;
+int nowLocalPCD = 0;
+float max_execution_time = 0;
+float z_passthrough = 0.8;
+
 //==============================
 
 ////=========random=========
@@ -425,10 +440,15 @@ void do_PerspectiveProjection(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_clou
       Mapping_RGB_Image.at<cv::Vec3b>(idxY, idxX)[2] = (int)input_cloud->points[i].r;
 
       z = input_cloud->points[i].z;
-      if (z > 0.0 && z < 3.86)
+      // if (z > 0.0 && z < 3.86)
+      // {
+      //   z = (z) / depth_interval;
+      //   Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
+      // }
+      if (z > 0.0 && z < 1.0)
       {
-      z = (z) / depth_interval;
-      Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
+        z = z/1.0*255;
+        Mapping_Depth_Image.at<uchar>(idxY, idxX) = round(z);
       }
     }
   }
@@ -725,7 +745,11 @@ pcl_utils::coordinate_normal  average_normal(pcl::PointCloud<pcl::PointXYZRGB>::
     }
   }
   // printf("================\ncloud_size = %d \n",count);
-
+  if (count == 0)
+  {
+    // cout << "zero normal found!, input_normal->points.size()=" << input_normal->points.size() << endl;
+    count = 1;
+  }
   average_normal.x = average_normal.x/count;
   average_normal.y = average_normal.y/count;
   average_normal.z = average_normal.z/count;
@@ -737,8 +761,8 @@ pcl_utils::coordinate_normal  average_normal(pcl::PointCloud<pcl::PointXYZRGB>::
 }
 
 
-bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
-                                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point, oan_vector &output_oan_vector)
+bool do_calculate_number_of_pointcloud(cv::Point2f dl_grasp_predict, float angle, std::vector<Point_with_Pixel> &PwPs, 
+                                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float *new_point, oan_vector &output_oan_vector, float& Grap_Point_Num, float& Finger_Grap_Point_Num)
 {
   Eigen::Vector3d open_vector(1, 0, 0);
   Eigen::Vector3d approach_vector(0, 0, 1);
@@ -764,7 +788,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
-    if (abs(PwPs[i].pixel.x - grcnn_predict.x) < thr & abs(PwPs[i].pixel.y - grcnn_predict.y) < thr)//need to be check for more carefully! Maybe multi points can be projected to the same point!
+    if (abs(PwPs[i].pixel.x - dl_grasp_predict.x) < thr & abs(PwPs[i].pixel.y - dl_grasp_predict.y) < thr)//need to be check for more carefully! Maybe multi points can be projected to the same point!
     {
       // cout << "find!" << "\n";
 
@@ -839,9 +863,10 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
       finger_grab_point_num.data = number_of_point_finger - number_of_point;
 
       pubNumGrabPoint.publish(grab_point_num);
-
       pubNumFingerGrabPoint.publish(finger_grab_point_num);
-      
+
+      Grap_Point_Num = number_of_point;
+      Finger_Grap_Point_Num = number_of_point_finger - number_of_point;
       //=========rviz marker=========
       open_arrow.header.stamp = ros::Time();
       open_arrow.pose.position.x = point_x;
@@ -904,13 +929,13 @@ bool do_calculate_number_of_pointcloud(cv::Point2f grcnn_predict, float angle, s
   }
   return false;
 }
-void do_Callback_GrcnnResult(pcl_utils::grcnn_result result)
+void do_Callback_DL_Grasp_Result(pcl_utils::dl_grasp_result result)
 {
-  grcnn_input.x = result.x;
-  grcnn_input.y = result.y;
-  grcnn_input.angle = result.angle;
-  grcnn_input.length = result.length;
-  grcnn_input.width = result.width;
+  dl_grasp_input.x = result.x;
+  dl_grasp_input.y = result.y;
+  dl_grasp_input.angle = result.angle;
+  dl_grasp_input.length = result.length;
+  dl_grasp_input.width = result.width;
 }
 
 void do_Project_using_parametric_model(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, 
@@ -933,91 +958,9 @@ void do_Project_using_parametric_model(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &i
   proj.filter (*output_cloud);
 }
 
-
-void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
-{  
-  // ROS to PCL
-  pcl::fromROSMsg(*cloud_msg, *cloud);
-
-  do_Passthrough(cloud, filter_cloud, "x", -0.28, 0.35);
-  do_Passthrough(filter_cloud, filter_cloud, "y", -1, 0.08);
-  do_Passthrough(filter_cloud, filter_cloud, "z", -1, 0.85);
-  do_VoxelGrid(filter_cloud, filter_cloud);
-  
-}
-
-string SaveImage_Counter_Wrapper(int num, int object_number)
+void do_Mapping_Image()
 {
-  string Complement = "";
-
-  if (num < 10)
-  {
-    Complement = to_string(object_number) + "0";
-  }
-  else
-  {
-    Complement = to_string(object_number);
-  }
-
-  return (Complement + to_string(num));
-}
-
-bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
-{
-  string Save_Data_path = "/home/ur5/datasets/my_grasp_dataset/";
-  string Name_pcd = "pcd";
-  string Name_RGB_Image_root = "r.png";
-  string Name_Depth_Image_root = "d.tiff";
-  string Name_PCD_root = ".pcd";
-  string Name_txt_root = ".txt";
-
-
-  //save RGB image as .png format
-  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_RGB_Image_root, Mapping_RGB_Image);
-
-  //save depth image as .tiff format
-  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_Depth_Image_root, Mapping_Depth_Image);
-
-  pcl::io::savePCDFileASCII (Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_PCD_root, *filter_cloud);
-  
-  ofstream ofs;
-  ofs.open(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_txt_root);
-
-  if (!ofs.is_open()) {
-        cout << "Failed to open file.\n";
-    } else {
-        ofs << grcnn_input.x + 190 << "\n";
-        ofs << grcnn_input.y + 110 << "\n";
-        ofs << Angle_axis_rotation_approach;
-        ofs.close();
-  }
-  cout << "Angle_axis_rotation_approach " << Angle_axis_rotation_approach <<endl;
-  take_picture_counter++;
-
-  res.back = take_picture_counter;
-
-  ROS_INFO("Done SaveImage!");
-
-  return true;
-}
-
-bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPointCloud::Response &res)
-{
-  cout<<"Set Input PointCloud"<<endl;
-  
-  pcl::copyPointCloud(*filter_cloud, *now_cloud);
-  Set_Input_PointCloud = true;
-
-  res.back = 0;
-  return true;
-}
-
-void do_PointcloudProcess()
-{
-  ros::WallTime start_, end_;
-  start_ = ros::WallTime::now();
-
-  //=== Get projected rgb & depth image form pointcloud === [begin]
+ //=== Get projected rgb & depth image form pointcloud === [begin]
   //reset values in the images
   Mapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
   Mapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
@@ -1031,7 +974,6 @@ void do_PointcloudProcess()
   viewpoint_rotation[0] = 0.0;
   viewpoint_rotation[1] = 0.0;
   viewpoint_rotation[2] = 0.0;
-
 
   if(filter_cloud->size()!=0)
   {
@@ -1055,35 +997,210 @@ void do_PointcloudProcess()
     pubProjectDepthImage.publish(depth_msg);
     //=== Get projected rgb & depth image form pointcloud === [end]
   }
+}
+
+void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+{  
+  // ROS to PCL
+  pcl::fromROSMsg(*cloud_msg, *cloud);
+
+  do_Passthrough(cloud, filter_cloud, "x", -0.28, 0.35);
+  do_Passthrough(filter_cloud, filter_cloud, "y", -1, 0.08);
+  do_Passthrough(filter_cloud, filter_cloud, "z", -1, z_passthrough);
+  do_VoxelGrid(filter_cloud, filter_cloud);
+
+  do_Mapping_Image();
   
+}
+
+string SaveImage_Counter_Wrapper(int num, int object_number)
+{
+  string Complement = "";
+
+  if (num < 10)
+  {
+    Complement = to_string(object_number) + "0";
+  }
+  else
+  {
+    Complement = to_string(object_number);
+  }
+
+  return (Complement + to_string(num));
+}
+
+bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
+{
+  string Save_Data_path = "/home/luca/datasets/my_grasp_dataset/";
+  string Name_pcd = "pcd";
+  string Name_RGB_Image_root = "r.png";
+  string Name_Depth_Image_root = "d.tiff";
+  string Name_PCD_root = ".pcd";
+  string Name_txt_root = ".txt";
+
+
+  //save RGB image as .png format
+  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_RGB_Image_root, Mapping_RGB_Image);
+
+  //save depth image as .tiff format
+  cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_Depth_Image_root, Mapping_Depth_Image);
+
+  pcl::io::savePCDFileASCII (Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_PCD_root, *filter_cloud);
+  
+  ofstream ofs;
+  ofs.open(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_txt_root);
+
+  if (!ofs.is_open()) {
+        cout << "Failed to open file.\n";
+    } else {
+        ofs << dl_grasp_input.x << "\n";
+        ofs << dl_grasp_input.y << "\n";
+        ofs << Angle_axis_rotation_approach;
+        ofs.close();
+  }
+  cout << "Angle_axis_rotation_approach " << Angle_axis_rotation_approach <<endl;
+  take_picture_counter++;
+
+  res.back = take_picture_counter;
+
+  ROS_INFO("Done SaveImage!");
+
+  return true;
+}
+
+bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPointCloud::Response &res)
+{
+  cout<<"Set Input PointCloud"<<endl;
+  
+  pcl::copyPointCloud(*filter_cloud, *now_cloud);
+  Set_Input_PointCloud = true;
+
+  pcl::toROSMsg(*now_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "depth_camera_link";
+  pubNowCloud.publish(now_cloud_output);
+
+  res.back = 0;
+  return true;
+}
+
+bool do_setZPassthrough(pcl_utils::setZPassthrough::Request &req, pcl_utils::setZPassthrough::Response &res)
+{
+  z_passthrough = req.z_dist;
+
+  ROS_INFO("Set Z-axis Passthrough distance!");
+  res.back = 0;
+  return true;
+}
+
+bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
+{
+  string Load_File_path = "/home/luca/datasets/GraspPointDataset/";
+  string Name_pcd = "pcd99";
+  string Name_PCD_root = ".pcd";
+  string PCD_File_Name;
+  string Name_txt_root = ".txt";
+
+  string PCD_Num_string;
+
+  if (nowLocalPCD <10)
+  {
+    PCD_Num_string = "0" + to_string(nowLocalPCD);
+  }
+  else
+  {
+    PCD_Num_string = to_string(nowLocalPCD);
+  }
+
+  PCD_File_Name = Load_File_path + Name_pcd + PCD_Num_string + Name_PCD_root;
+
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGB> (PCD_File_Name, *now_cloud) == -1) //* load the file
+  {
+    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+    return false;
+  }
+
+  cout<<"Load Input PointCloud"<<endl;
+
+  pcl::toROSMsg(*now_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "depth_camera_link";
+  pubNowCloud.publish(now_cloud_output);
+
+  ifstream ifs;
+  string line;
+  
+  float predict_x, predict_y, predict_theta; 
+  
+  ifs.open(Load_File_path + Name_pcd + PCD_Num_string + Name_txt_root);
+
+  getline(ifs, line);
+  dl_grasp_input.x = stof(line);
+  getline(ifs, line);
+  dl_grasp_input.y = stof(line);
+  getline(ifs, line);
+  Angle_axis_rotation_approach = stof(line);
+
+  // cout << "dl_grasp_input.x " << dl_grasp_input.x << ", dl_grasp_input.y " << dl_grasp_input.y << ", Angle_axis_rotation_approach " << Angle_axis_rotation_approach << "\n";
+
+  // Close file
+  ifs.close();
+
+  nowLocalPCD++;
+
+  if (nowLocalPCD == NumberOfLocalPCD)
+  {
+    nowLocalPCD = 0;
+  }
+  return true;
+}
+
+pcl_utils::RL_Env_msg do_PointcloudProcess()
+{
+  ros::WallTime start_, end_;
+  start_ = ros::WallTime::now();
+
+  //=== Get projected rgb & depth image form pointcloud === [begin]
+  //reset values in the images
+  Mapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  Mapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
+  //get random number
+  // float random_rotation = unif(generator);
+
+  viewpoint_translation[0] = 0.0;
+  viewpoint_translation[1] = 0.0;
+  viewpoint_translation[2] = 0.0;
+  viewpoint_rotation[0] = 0.0;
+  viewpoint_rotation[1] = 0.0;
+  viewpoint_rotation[2] = 0.0;
+  
+  pcl_utils::RL_Env_msg RL_Env;
 
   if(now_cloud->size()!=0)
   {
+
     //=== Get grab pointclout & count it's number === [begin]
-    float grasp_angle = grcnn_input.angle;
+    float grasp_angle = dl_grasp_input.angle;
     grasp_angle = 0;
 
-    cv::Point2f grcnn_predict;
+    cv::Point2f dl_grasp_predict;
 
-    grcnn_predict.x = grcnn_input.x + 190;
-    grcnn_predict.y = grcnn_input.y + 110;
-    // grcnn_predict.x = 320;
-    // grcnn_predict.y = 260;
+    dl_grasp_predict.x = dl_grasp_input.x;
+    dl_grasp_predict.y = dl_grasp_input.y;
 
     oan_vector plane_coefficients_vector;
 
-    // if(Set_Input_PointCloud)
-    // {
-    //   Set_Input_PointCloud = false;
-    //   cout <<"Set_Input_PointCloud~~~"<<endl;
-    // }
     std::vector<Point_with_Pixel> now_cloud_PwPs;
 
     do_PerspectiveProjection(now_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, now_cloud_PwPs, fx, fy, cx, cy);
 
-    if(do_calculate_number_of_pointcloud(grcnn_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector))
+    float Grap_Point_Num, Finger_Grap_Point_Num;
+    
+    if(do_calculate_number_of_pointcloud(dl_grasp_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector, Grap_Point_Num, Finger_Grap_Point_Num))
     {
       float *Rotate_angle = new float[3];
+
+      RL_Env.grab_point_num = Grap_Point_Num;
+      RL_Env.finger_grab_point_num = Finger_Grap_Point_Num;
 
       Rotate_angle[0] = -1 * Angle_axis_rotation_open;  //X axis
       Rotate_angle[1] = -1 * Angle_axis_rotation_normal;  //Y axis
@@ -1144,6 +1261,51 @@ void do_PointcloudProcess()
       pcl::toROSMsg(*grab_cloud_right, grab_output_right);
       grab_output_right.header.frame_id = "depth_camera_link";
       pubGrabPointCloudsRight.publish(grab_output_right);
+
+      //Grab cloud normal
+      if (grab_cloud->size()!= 0)
+      {
+        pcl::PointCloud<pcl::PointNormal>::Ptr grab_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
+        do_calculate_normal(grab_cloud, grab_cloud_normal);
+        pcl_utils::coordinate_normal object_normal_grab;
+        object_normal_grab = average_normal(grab_cloud, grab_cloud_normal);
+        pubGrabPointCloudsNormal.publish(object_normal_grab);
+
+        geometry_msgs::PoseStamped object_pose;
+
+        object_pose.header.frame_id = "depth_camera_link";
+        object_pose.header.stamp = ros::Time::now();;
+        object_pose.header.seq = 1;
+
+        // extracting surface normals
+        tf::Vector3 grab_axis_vector(object_normal_grab.normal_x, object_normal_grab.normal_y, object_normal_grab.normal_z);
+        tf::Vector3 grab_up_vector(1.0, 0.0, 0.0);
+
+        tf::Vector3 grab_right_vector = grab_axis_vector.cross(grab_up_vector);
+        grab_right_vector.normalized();
+        tf::Quaternion grab_q(grab_right_vector, -1.0*acos(grab_axis_vector.dot(grab_up_vector)));
+        grab_q.normalize();
+
+        geometry_msgs::Quaternion grab_msg;
+
+        tf::quaternionTFToMsg(grab_q, grab_msg);
+
+        object_pose.pose.orientation = grab_msg;
+        object_pose.pose.position.x = object_normal_grab.x;
+        object_pose.pose.position.y = object_normal_grab.y;
+        object_pose.pose.position.z = object_normal_grab.z;
+
+        pub_pose_grab.publish (object_pose);
+
+        float normal_likelihood = -1.0 * (plane_coefficients_vector.approach_vector(0) * object_normal_grab.normal_x 
+                                        + plane_coefficients_vector.approach_vector(1) * object_normal_grab.normal_y 
+                                        + plane_coefficients_vector.approach_vector(2) * object_normal_grab.normal_z);
+
+        std_msgs::Float64 normal_likelihood_msg;
+        normal_likelihood_msg.data = normal_likelihood;
+        RL_Env.normal_likelihood_msg = normal_likelihood;
+        pubNormalLikelihood.publish(normal_likelihood_msg);
+      }
       
       //left finger====================================================================
       if(grab_cloud_left->size()!= 0)
@@ -1183,9 +1345,16 @@ void do_PointcloudProcess()
         float left_likelihood = (plane_coefficients_vector.open_vector(0) * object_normal_left.normal_x 
                               + plane_coefficients_vector.open_vector(1) * object_normal_left.normal_y 
                               + plane_coefficients_vector.open_vector(2) * object_normal_left.normal_z);
-        
+
+        if (isnan(left_likelihood))
+        {
+
+          cout << " left_likelihood Not a Number FOUNDED!!!" <<endl;
+        }
+
         std_msgs::Float64 left_likelihood_msg;
         left_likelihood_msg.data = left_likelihood;
+        RL_Env.left_likelihood_msg = left_likelihood;
         pubLeftLikelihood.publish(left_likelihood_msg);
 
       }
@@ -1228,16 +1397,28 @@ void do_PointcloudProcess()
         float right_likelihood = (-1.0*plane_coefficients_vector.open_vector(0) * object_normal_right.normal_x 
                                 + -1.0*plane_coefficients_vector.open_vector(1) * object_normal_right.normal_y 
                                 + -1.0*plane_coefficients_vector.open_vector(2) * object_normal_right.normal_z);
-      
+
+
+        if (isnan(right_likelihood))
+        {
+          cout << " right_likelihood Not a Number FOUNDED!!!" <<endl;
+        }
+        
         std_msgs::Float64 right_likelihood_msg;
         right_likelihood_msg.data = right_likelihood;
+        RL_Env.right_likelihood_msg = right_likelihood;
         pubRightLikelihood.publish(right_likelihood_msg);
       }
 
       std_msgs::Float64 approach_likelihood_msg;
       // approach to (0, 0, 1) is better
       float approach_likelihood =  plane_coefficients_vector.approach_vector(2);
+      if (isnan(approach_likelihood))
+      {
+        cout << " approach_likelihood Not a Number FOUNDED!!!" <<endl;
+      }
       approach_likelihood_msg.data = approach_likelihood;
+      RL_Env.approach_likelihood_msg = approach_likelihood;
       //!!!!!!!!!!!!!!!!!
       pubApproachLikelihood.publish(approach_likelihood_msg);
 
@@ -1277,71 +1458,100 @@ void do_PointcloudProcess()
 
       cv::Mat Grab_element = getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));  
       
-      cv::dilate(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, Grab_element);
+      // cv::dilate(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, Grab_element);
       cv::dilate(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, Grab_element); 
 
-      cv::dilate(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, Grab_element);
+      // cv::dilate(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, Grab_element);
       cv::dilate(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, Grab_element); 
 
-      cv::dilate(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, Grab_element);
+      // cv::dilate(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, Grab_element);
       cv::dilate(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, Grab_element); 
 
       // cv::Size cv_downsize = cv::Size(320, 240);
       cv::Size cv_downsize = cv::Size(160, 120);
 
-      cv::resize(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, cv_downsize, cv::INTER_AREA);
-      cv::resize(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, cv_downsize, cv::INTER_AREA);
-      cv::resize(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, cv_downsize, cv::INTER_AREA);
+      // cv::resize(Grab_Cloud_Normal_RGB_Image, Grab_Cloud_Normal_RGB_Image, cv_downsize, cv::INTER_AREA);
+      // cv::resize(Grab_Cloud_Approach_RGB_Image, Grab_Cloud_Approach_RGB_Image, cv_downsize, cv::INTER_AREA);
+      // cv::resize(Grab_Cloud_Open_RGB_Image, Grab_Cloud_Open_RGB_Image, cv_downsize, cv::INTER_AREA);
 
       cv::resize(Grab_Cloud_Normal_Depth_Image, Grab_Cloud_Normal_Depth_Image, cv_downsize, cv::INTER_AREA);
       cv::resize(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, cv_downsize, cv::INTER_AREA);
       cv::resize(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, cv_downsize, cv::INTER_AREA);
 
       int NormaldepthNonZeroValue = cv::countNonZero(Grab_Cloud_Normal_Depth_Image);
+      int OpendepthNonZeroValue = cv::countNonZero(Grab_Cloud_Open_Depth_Image);
 
       // cout << "Number of non-zero image Grab_Cloud_Normal_Depth_Image: " << NormaldepthNonZeroValue << endl;
 
       std_msgs::Float64 NormaldepthNonZeroValue_msg;
       NormaldepthNonZeroValue_msg.data = NormaldepthNonZeroValue;
+      RL_Env.NormaldepthNonZeroValue_msg = NormaldepthNonZeroValue;
       pubNormaldepthNonZero.publish(NormaldepthNonZeroValue_msg);
 
+      std_msgs::Float64 OpendepthNonZeroValue_msg;
+      OpendepthNonZeroValue_msg.data = OpendepthNonZeroValue;
+      pubOpendepthNonZero.publish(OpendepthNonZeroValue_msg);
+
       //=== publish mapping image === [begin]
-      sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
-      ros::Time grab_approach_rgb_begin = ros::Time::now();
-      grab_approach_rgb_msg->header.stamp = grab_approach_rgb_begin;
-      pubProject_Grab_Approach_RGB_Image.publish(grab_approach_rgb_msg);
+      // sensor_msgs::ImagePtr grab_approach_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Approach_RGB_Image).toImageMsg();
+      // ros::Time grab_approach_rgb_begin = ros::Time::now();
+      // grab_approach_rgb_msg->header.stamp = grab_approach_rgb_begin;
+      // pubProject_Grab_Approach_RGB_Image.publish(grab_approach_rgb_msg);
 
       sensor_msgs::ImagePtr grab_approach_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Approach_Depth_Image).toImageMsg();
       ros::Time grab_approach_depth_begin = ros::Time::now();
       grab_approach_depth_msg->header.stamp = grab_approach_depth_begin;
       pubProject_Grab_Approach_Depth_Image.publish(grab_approach_depth_msg);
 
-      sensor_msgs::ImagePtr grab_open_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Open_RGB_Image).toImageMsg();
-      ros::Time grab_open_rgb_begin = ros::Time::now();
-      grab_open_rgb_msg->header.stamp = grab_open_rgb_begin;
-      pubProject_Grab_Open_RGB_Image.publish(grab_open_rgb_msg);
+      // sensor_msgs::ImagePtr grab_open_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Open_RGB_Image).toImageMsg();
+      // ros::Time grab_open_rgb_begin = ros::Time::now();
+      // grab_open_rgb_msg->header.stamp = grab_open_rgb_begin;
+      // pubProject_Grab_Open_RGB_Image.publish(grab_open_rgb_msg);
 
       sensor_msgs::ImagePtr grab_open_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Open_Depth_Image).toImageMsg();
       ros::Time grab_open_depth_begin = ros::Time::now();
       grab_open_depth_msg->header.stamp = grab_approach_depth_begin;
       pubProject_Grab_Open_Depth_Image.publish(grab_open_depth_msg);
 
-      sensor_msgs::ImagePtr grab_normal_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Normal_RGB_Image).toImageMsg();
-      ros::Time grab_normal_rgb_begin = ros::Time::now();
-      grab_normal_rgb_msg->header.stamp = grab_normal_rgb_begin;
-      pubProject_Grab_Normal_RGB_Image.publish(grab_normal_rgb_msg);
+      // sensor_msgs::ImagePtr grab_normal_rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Grab_Cloud_Normal_RGB_Image).toImageMsg();
+      // ros::Time grab_normal_rgb_begin = ros::Time::now();
+      // grab_normal_rgb_msg->header.stamp = grab_normal_rgb_begin;
+      // pubProject_Grab_Normal_RGB_Image.publish(grab_normal_rgb_msg);
 
       sensor_msgs::ImagePtr grab_normal_depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Grab_Cloud_Normal_Depth_Image).toImageMsg();
       ros::Time grab_normal_depth_begin = ros::Time::now();
       grab_normal_depth_msg->header.stamp = grab_normal_depth_begin;
       pubProject_Grab_Normal_Depth_Image.publish(grab_normal_depth_msg);
+
+      RL_Env.grab_normal_depth_msg = *grab_normal_depth_msg;
+      RL_Env.grab_open_depth_msg = *grab_open_depth_msg;
+      RL_Env.grab_approach_depth_msg = *grab_approach_depth_msg;
+
       //=== publish image === [end]
     }
+    // pubRL_Env.publish(RL_Env);
   }
+
   end_ = ros::WallTime::now();
   // print results
   double execution_time = (end_ - start_).toNSec() * 1e-6;
+  if (execution_time > max_execution_time)
+  {
+    max_execution_time = execution_time;
+  }
+
+  return RL_Env;
   // ROS_INFO_STREAM("Exectution time (ms): " << execution_time);
+  // max_execution_time = max_execution_time -0.1;
+  // ROS_INFO_STREAM("max_execution_time time (ms): " << max_execution_time);
+}
+
+bool do_get_RL_Env(pcl_utils::get_RL_Env::Request &req, pcl_utils::get_RL_Env::Response &res)
+{
+  res.state = do_PointcloudProcess();
+  // cout << "req" << req.call;
+
+  return true;
 }
 
 int main (int argc, char** argv)
@@ -1429,9 +1639,13 @@ int main (int argc, char** argv)
 
   pubGrabPointCloudsRight = nh.advertise<sensor_msgs::PointCloud2> ("/Grab_PointClouds_Right", 30);
 
+  pubGrabPointCloudsNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Normal", 1);
+
   pubGrabPointCloudsLeftNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Left_Normal", 1);
 
   pubGrabPointCloudsRightNormal = nh.advertise<pcl_utils::coordinate_normal> ("/Grab_PointClouds_Right_Normal", 1);
+
+  pub_pose_grab = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/grab", 1);
 
   pub_pose_left = nh.advertise<geometry_msgs::PoseStamped> ("/object/pose/left", 1);
   
@@ -1443,6 +1657,8 @@ int main (int argc, char** argv)
   // Create ROS pointcloud publisher for the number of finger grab point
   pubNumFingerGrabPoint = nh.advertise<std_msgs::Int64> ("/Number_of_Finger_Grab_PointClouds", 30);
 
+  pubNormalLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Grab_Cloud", 30);
+
   pubLeftLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Left_Finger", 30);
 
   pubRightLikelihood = nh.advertise<std_msgs::Float64> ("/PointLikelihood/Right_Finger", 30);
@@ -1450,6 +1666,8 @@ int main (int argc, char** argv)
   pubApproachLikelihood = nh.advertise<std_msgs::Float64> ("/ApporachLikelihood", 30);
 
   pubNormaldepthNonZero = nh.advertise<std_msgs::Float64> ("/NormaldepthNonZero", 30);
+
+  pubOpendepthNonZero = nh.advertise<std_msgs::Float64> ("/OpendepthNonZero", 30);
 
   // Create ROS pointcloud publisher for projected normal vector plane cloud
   pubProjectNormalVectorPlaneCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Project_Normal_Vector_PlaneClouds", 30);
@@ -1469,11 +1687,16 @@ int main (int argc, char** argv)
   // Create ROS pointcloud publisher for retransform projected open vector plane cloud
   pubRetransformProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Open_Vector_PlaneClouds", 30);
 
+  pubNowCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Now_Clouds", 30);
+
+  pubRL_Env = nh.advertise<pcl_utils::RL_Env_msg> ("/RL_Env", 30);
+
+
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
 
-  // Create ROS subscriber for the result of grcnn (2D grasp point)
-  ros::Subscriber subGrcnnResult = nh.subscribe<pcl_utils::grcnn_result> ("/grcnn/result", 1, do_Callback_GrcnnResult);
+  // Create ROS subscriber for the result of dl grasp (2D grasp point)
+  ros::Subscriber subDLGraspResult = nh.subscribe<pcl_utils::dl_grasp_result> ("/dl_grasp/result", 1, do_Callback_DL_Grasp_Result);
 
   // Create ROS subscriber for the AngleAxis_rotation (open, normal & approach)
   ros::Subscriber subAngleAxisRotation = nh.subscribe<pcl_utils::AngleAxis_rotation_msg> ("/grasp_training/AngleAxis_rotation", 1, do_Callback_AngleAxisRotation);
@@ -1486,16 +1709,25 @@ int main (int argc, char** argv)
 
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
 
+  ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud);
+
+  ros::ServiceServer set_z_passthrough_service = nh.advertiseService("/set_z_passthrough", do_setZPassthrough);
+
+  ros::ServiceServer RL_Env_service = nh.advertiseService("/get_RL_Env", do_get_RL_Env);
+
+
   ros::WallTime start_, end_;
 
-  ros::Rate loop_rate(100);
+  // ros::Rate loop_rate(100);
 
-  while(ros::ok())
-  {
-    do_PointcloudProcess();
-    ros::spinOnce();
-    // loop_rate.sleep();
-  }
+  // while(ros::ok())
+  // {
+  //   do_PointcloudProcess();
+  //   ros::spinOnce();
+  //   // loop_rate.sleep();
+  // }
+
+  ros::spin();
 
   return 0;
 }

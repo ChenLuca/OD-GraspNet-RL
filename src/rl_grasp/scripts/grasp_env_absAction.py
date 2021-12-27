@@ -101,27 +101,32 @@ grab_open_rgb_bridge = CvBridge()
 
 class GraspEnv(py_environment.PyEnvironment):
 
-    def __init__(self, input_image_size):
+    def __init__(self, input_image_size, phase):
         self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=360, name="action")
 
         self.input_image_size = input_image_size
 
-        self._observation_spec = {  "depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], 1), dtype = np.float32, minimum=0, maximum=255)
-                                    }
+        self.input_channel = 3
 
-        self._state = { "depth_grab" : np.zeros((self.input_image_size[0], self.input_image_size[1], 1), np.float32)}
+        self.phase = phase
+
+        self._step_lengh = 9
+
+        self._observation_spec = {"depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], self.input_channel), dtype = np.float32, minimum=0, maximum=255)}
+
+        self._state = {"depth_grab" : np.zeros((self.input_image_size[0], self.input_image_size[1], self.input_channel), np.float32)}
         
         self.grab_normal_depth_image = np.zeros((0,0,1), np.float32)
         self.grab_approach_depth_image = np.zeros((0,0,1), np.float32)
         self.grab_open_depth_image = np.zeros((0,0,1), np.float32)
 
-        self.grab_depth_image = np.zeros((0,0,3), np.float32)
+        self.grab_depth_image = np.zeros((0,0,self.input_channel), np.float32)
 
         self._episode_ended = False
 
         self._reward = 0 
         self._step_counter = 0
-        self._step_lengh = 9
+
         self._number_of_grab_pointClouds = 0
         self._number_of_finger_grab_pointClouds = 0
         self.pointLikelihood_left_finger = 0
@@ -187,6 +192,9 @@ class GraspEnv(py_environment.PyEnvironment):
         try:
             res = self.handle_get_RL_Env(req)
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+            self.grab_open_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+            self.grab_approach_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+
             self.apporachLikelihood = res.state.approach_likelihood_msg
             self.pointLikelihood_right_finger = res.state.right_likelihood_msg
             self.pointLikelihood_left_finger = res.state.left_likelihood_msg
@@ -195,10 +203,10 @@ class GraspEnv(py_environment.PyEnvironment):
             self._number_of_grab_pointClouds = res.state.grab_point_num
             self._number_of_finger_grab_pointClouds = res.state.finger_grab_point_num
 
-            # cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_normal_depth_image', self.grab_normal_depth_image)
+            # cv2.namedWindow('grab_approach_depth_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_approach_depth_image', self.grab_approach_depth_image)
             # cv2.waitKey(1)
-            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
+            # print("self.grab_approach_depth_image.shape ", self.grab_approach_depth_image.shape)
             # print("self.apporachLikelihood ", self.apporachLikelihood)
             # print("self.pointLikelihood_right_finger ", self.pointLikelihood_right_finger)
             # print("self.pointLikelihood_left_finger ", self.pointLikelihood_left_finger)
@@ -296,7 +304,6 @@ class GraspEnv(py_environment.PyEnvironment):
         except CvBridgeError as e:
             print(e)
 
-
     def action_spec(self):
         return self._action_spec
     
@@ -358,8 +365,8 @@ class GraspEnv(py_environment.PyEnvironment):
         self.get_RL_Env_data(1)
         # print("--- %s seconds ---" % (time.time() - start_time))
 
-        # self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
-        self._state["depth_grab"] = self.grab_normal_depth_image
+        self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        # self._state["depth_grab"] = self.grab_normal_depth_image
 
         self._update_reward()
 
@@ -373,7 +380,7 @@ class GraspEnv(py_environment.PyEnvironment):
         # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
         #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
         
-        self._reward = 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + 1.0*(self.apporachLikelihood)
+        self._reward = 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud #+ 1.0*(self.apporachLikelihood)
                             # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
                             # - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
 
@@ -405,11 +412,14 @@ class GraspEnv(py_environment.PyEnvironment):
             print("out of angle!")
             return ts.termination(self._state, -30)
 
-        if self._step_counter > self._step_lengh:
-            self._episode_ended = True
-            self._step_counter = 0
-            # print("out of step!")
-            return ts.termination(self._state, self._reward)
+        if self.phase == "training":
+            if self._step_counter > self._step_lengh:
+                self._episode_ended = True
+                self._step_counter = 0
+                # print("out of step!")
+                return ts.termination(self._state, self._reward)
 
+            else:
+                return ts.transition(self._state, self._reward, discount=1.0)
         else:
             return ts.transition(self._state, self._reward, discount=1.0)

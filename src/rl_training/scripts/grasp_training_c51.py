@@ -44,6 +44,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import abc
 import tf_agents
 from tf_agents.agents.dqn import dqn_agent
+from tf_agents.agents.categorical_dqn import categorical_dqn_agent
+
 from tf_agents.networks import q_network
 from tf_agents.policies import policy_saver
 
@@ -60,6 +62,7 @@ from tf_agents.specs import tensor_spec
 from tf_agents.networks import network
 from tf_agents.networks import encoding_network
 from tf_agents.networks import utils
+from tf_agents.networks import categorical_q_network
 
 from tf_agents.utils import common
 from tf_agents.utils import common as common_utils
@@ -67,7 +70,7 @@ from tf_agents.utils import nest_utils
 
 from tf_agents.trajectories import time_step as ts
 
-from grasp_env import GraspEnv
+from grasp_env_absAction import GraspEnv
 
 tf.compat.v1.enable_v2_behavior()
 
@@ -157,6 +160,27 @@ def save_agent(save_path, agent_name, agent_policy):
     tf_policy_saver = policy_saver.PolicySaver(agent_policy)
     tf_policy_saver.save(policy_dir)
 
+num_iterations = 15000
+
+initial_collect_steps = 1000
+collect_steps_per_iteration = 1
+replay_buffer_capacity = 100000
+
+fc_layer_params = (100,)
+
+batch_size = 64
+learning_rate = 1e-3
+gamma = 0.99
+log_interval = 200
+
+num_atoms = 51
+min_q_value = -20
+max_q_value = 20
+n_step_update = 2 
+
+num_eval_episodes = 10
+eval_interval = 1000
+
 if __name__ == '__main__':
 
     #init ros
@@ -166,7 +190,7 @@ if __name__ == '__main__':
     
     do_loadPointCloud(1)
 
-    environment = GraspEnv([120, 160])
+    environment = GraspEnv([120, 160], "training")
 
     time.sleep(1)
 
@@ -187,25 +211,33 @@ if __name__ == '__main__':
 
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
 
-    my_q_network = tf_agents.networks.q_network.QNetwork(
+    # my_q_network = tf_agents.networks.q_network.QNetwork(
+    #                 tf_env.observation_spec(), 
+    #                 tf_env.action_spec(), 
+    #                 preprocessing_layers=preprocessing_layers,
+    #                 conv_layer_params=None, 
+    #                 fc_layer_params=(50, 50),
+    #                 dropout_layer_params=None, 
+    #                 activation_fn=tf.keras.activations.relu,
+    #                 kernel_initializer=None, 
+    #                 batch_squash=True, 
+    #                 dtype=tf.float32,
+    #                 name='QNetwork'
+    #             )
+    categorical_q_net = categorical_q_network.CategoricalQNetwork(
                     tf_env.observation_spec(), 
-                    tf_env.action_spec(), 
+                    tf_env.action_spec(),
                     preprocessing_layers=preprocessing_layers,
-                    conv_layer_params=None, 
+                    num_atoms=num_atoms,
                     fc_layer_params=(100, 50),
-                    dropout_layer_params=None, 
-                    activation_fn=tf.keras.activations.relu,
-                    kernel_initializer=None, 
-                    batch_squash=True, 
-                    dtype=tf.float32,
-                    name='QNetwork'
-                )
+                    activation_fn=tf.keras.activations.tanh,
+                    name='C51_QNetwork')
 
     learning_rate = 1e-4
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     global_step = tf.compat.v1.train.get_or_create_global_step()
     start_epsilon = 0.1
-    n_of_steps = 100000
+    n_of_steps = 150000
     end_epsilon = 0.0001
     epsilon = tf.compat.v1.train.polynomial_decay(
         start_epsilon,
@@ -214,19 +246,31 @@ if __name__ == '__main__':
         end_learning_rate=end_epsilon)
     n_TD_step_update = 1
 
-    agent = dqn_agent.DqnAgent(
-        tf_env.time_step_spec(),
+    # agent = dqn_agent.DqnAgent(
+    #     tf_env.time_step_spec(),
+    #     tf_env.action_spec(),
+    #     n_step_update = n_TD_step_update,
+    #     q_network=my_q_network,
+    #     epsilon_greedy=epsilon,
+    #     optimizer=optimizer,
+    #     td_errors_loss_fn=common.element_wise_squared_loss,
+    #     train_step_counter=global_step)
+
+    agent = categorical_dqn_agent.CategoricalDqnAgent(
+        tf_env.time_step_spec(), 
         tf_env.action_spec(),
-        n_step_update = n_TD_step_update,
-        q_network=my_q_network,
-        epsilon_greedy=epsilon,
+        categorical_q_network=categorical_q_net,
         optimizer=optimizer,
-        td_errors_loss_fn=common.element_wise_squared_loss,
+        min_q_value=min_q_value,
+        max_q_value=max_q_value,
+        n_step_update=n_step_update,
+        epsilon_greedy=epsilon,
+        gamma=gamma,
         train_step_counter=global_step)
 
     agent.initialize()
 
-    print("my_q_network.summary(): ", my_q_network.summary())
+    print("categorical_q_net.summary(): ", categorical_q_net.summary())
 
     replay_buffer = tf_agents.replay_buffers.tf_uniform_replay_buffer.TFUniformReplayBuffer(data_spec=agent.collect_data_spec,
                                                                                             batch_size=tf_env.batch_size,
@@ -293,7 +337,7 @@ if __name__ == '__main__':
             if step % 1000 == 0:
                 avg_return = compute_avg_return(tf_env, agent.policy, 5)
 
-                save_agent("./src/rl_training/scripts/trained-model/DQN/", 'DQN_policy_' + str(step/1000) + "_" + str(avg_return), agent.policy)
+                save_agent("./src/rl_training/scripts/trained-model/C51/", 'C51_policy_' + str(step/1000) + "_" + str(avg_return), agent.policy)
 
                 print('step = {0}: Average Return = {1}'.format(step, avg_return))
                 returns.append(avg_return)
