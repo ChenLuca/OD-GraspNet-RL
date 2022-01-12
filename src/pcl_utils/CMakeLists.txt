@@ -229,6 +229,10 @@ add_executable(pcl_service src/pcl_service.cpp)
 target_link_libraries(pcl_service ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
 add_dependencies(pcl_service ${catkin_EXPORTED_TARGETS})
 
+add_executable(cloud_alignment src/cloud_alignment.cpp)
+target_link_libraries(cloud_alignment ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+add_dependencies(cloud_alignment ${catkin_EXPORTED_TARGETS})
+
 add_executable(get_cornell_data src/get_cornell_data.cpp)
 target_link_libraries(get_cornell_data ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 add_dependencies(get_cornell_data ${catkin_EXPORTED_TARGETS})

@@ -46,7 +46,6 @@
 #include <pcl/features/normal_3d.h>
 
 #include "pcl_utils/snapshot.h"
-
 #include "pcl_utils/setPointCloud.h"
 #include "pcl_utils/loadPointCloud.h"
 #include "pcl_utils/setZPassthrough.h"
