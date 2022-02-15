@@ -3,7 +3,9 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Global Options1
+        - /SubCloud1
       Splitter Ratio: 0.6900212168693542
     Tree Height: 473
   - Class: rviz/Selection
@@ -120,7 +122,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Azure_PointClouds
       Position Transformer: XYZ
       Queue Size: 10
@@ -148,7 +152,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Grab_PointClouds
       Position Transformer: XYZ
       Queue Size: 10
@@ -176,7 +182,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Project_Approach_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -204,7 +212,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Project_Normal_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -232,7 +242,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Project_Open_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -260,7 +272,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Retransform_Approach_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -288,7 +302,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Retransform_Normal_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -316,7 +332,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Retransform_Open_Plane
       Position Transformer: XYZ
       Queue Size: 10
@@ -416,7 +434,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: /Grab_PointClouds_Right
       Position Transformer: XYZ
       Queue Size: 10
@@ -444,7 +464,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: /Grab_PointClouds_Left
       Position Transformer: XYZ
       Queue Size: 10
@@ -517,7 +539,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Now Cloud
       Position Transformer: XYZ
       Queue Size: 10
@@ -545,7 +569,9 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: MasterCloud
       Position Transformer: XYZ
       Queue Size: 10
@@ -573,7 +599,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: SubCloud
       Position Transformer: XYZ
       Queue Size: 10
@@ -601,7 +629,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
+      Max Intensity: 4096
       Min Color: 0; 0; 0
+      Min Intensity: 0
       Name: Master_Sub_AlignmentCloud
       Position Transformer: XYZ
       Queue Size: 10
@@ -618,7 +648,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: master_rgb_camera_link
+    Fixed Frame: sub_depth_camera_link
     Frame Rate: 30
   Name: root
   Tools:
@@ -642,7 +672,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.261876106262207
+      Distance: 11.993999481201172
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -657,10 +687,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -1.2497966289520264
+      Pitch: 0.0652027502655983
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.7122883796691895
+      Yaw: 4.757286548614502
     Saved: ~
 Window Geometry:
   Displays:

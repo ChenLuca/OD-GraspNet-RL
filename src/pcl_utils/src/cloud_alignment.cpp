@@ -34,7 +34,6 @@ using namespace std;
 //=============
 typedef pcl::PointCloud<pcl::PointXYZRGB> pointcloud;
 typedef pcl::PointCloud<pcl::Normal> pointnormal;
-typedef pcl::PointCloud<pcl::FPFHSignature33> fpfhFeature;
 
 pointcloud::Ptr Master_Cloud (new pointcloud);
 pointcloud::Ptr Sub_Cloud (new pointcloud);
@@ -45,7 +44,17 @@ pointcloud::Ptr Alignment_Cloud (new pointcloud);
 sensor_msgs::PointCloud2 Alignment_Cloud_msg;
 ros::Publisher pubAlignment_Cloud;
 
-float z_passthrough = 1.5;
+typedef boost::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> CloudPointRGBPtr;
+
+struct ICPResult
+{
+  float icp_error;
+  CloudPointRGBPtr cloud;
+  Eigen::Matrix4d tf_matrix;
+  float id;
+};
+
+float z_passthrough = 0.7;
 //=============
 
 void do_Passthrough(pointcloud::Ptr &input_cloud, 
@@ -76,8 +85,8 @@ void do_Callback_PointCloud_Master(const sensor_msgs::PointCloud2ConstPtr& cloud
   // ROS to PCL
   pcl::fromROSMsg(*cloud_msg, *Master_Cloud);
 
-  do_Passthrough(Master_Cloud, Master_Filter_Cloud, "x", -1.0, 1.0);
-  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "y", -1.0, 1.0);
+  do_Passthrough(Master_Cloud, Master_Filter_Cloud, "x", -0.5, 0.5);
+  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "y", -0.5, 0.5);
   do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "z", -1, z_passthrough);
   do_VoxelGrid(Master_Filter_Cloud, Master_Filter_Cloud);
   
@@ -89,84 +98,171 @@ void do_Callback_PointCloud_Sub(const sensor_msgs::PointCloud2ConstPtr& cloud_ms
   pcl::fromROSMsg(*cloud_msg, *Sub_Cloud);
   // cout<<"Sub " <<  cloud_msg->header.frame_id<<endl;
 
-  do_Passthrough(Sub_Cloud, Sub_Filter_Cloud, "x", -1.0, 1.0);
-  do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "y", -1.0, 1.0);
+  do_Passthrough(Sub_Cloud, Sub_Filter_Cloud, "x", -0.5, 0.5);
+  do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "y", -0.5, 0.5);
   do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "z", -1, z_passthrough);
   do_VoxelGrid(Sub_Filter_Cloud, Sub_Filter_Cloud);
   
 }
 
-fpfhFeature::Ptr compute_fpfh_feature(pointcloud::Ptr input_cloud, pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree)
+Eigen::Matrix4d 
+do_FPFH(pointcloud::Ptr  &target,
+        pointcloud::Ptr  &source,
+        pointcloud::Ptr  &output_cloud,
+        double &FPFH_FitnessScore)
 {
-  //法向量
-  pointnormal::Ptr point_normal (new pointnormal);
-  pcl::NormalEstimation<pcl::PointXYZRGB,pcl::Normal> est_normal;
-  est_normal.setInputCloud(input_cloud);
-  est_normal.setSearchMethod(tree);
-  est_normal.setKSearch(10);
-  // est_normal.setRadiusSearch(0.03);
-  est_normal.compute(*point_normal);
+  pointcloud::Ptr cloud_tgt_o(new pointcloud);
+  pointcloud::Ptr cloud_src_o(new pointcloud);
 
-  //fpfh 估計
-  fpfhFeature::Ptr fpfh (new fpfhFeature);
+  cloud_tgt_o = target;
+  cloud_src_o = source;
 
-  //pcl::FPFHEstimation<pcl::PointXYZ,pcl::Normal,pcl::FPFHSignature33> est_target_fpfh;
-  pcl::FPFHEstimationOMP<pcl::PointXYZRGB, pcl::Normal, pcl::FPFHSignature33> est_fpfh;
+  // pcl::io::loadPCDFile<pcl::PointXYZRGB>(source, *cloud_src_o);
 
-  est_fpfh.setNumberOfThreads(8); //指定4核計算
-  // pcl::search::KdTree<pcl::PointXYZ>::Ptr tree4 (new pcl::search::KdTree<pcl::PointXYZ> ());
+  //去除NAN点
+	std::vector<int> indices_src; //保存去除的点的索引
+	pcl::removeNaNFromPointCloud(*cloud_src_o, *cloud_src_o, indices_src);
+	// std::cout << "remove *cloud_src_o nan" << endl;
 
-  est_fpfh.setInputCloud(input_cloud);
-  est_fpfh.setInputNormals(point_normal);
-  est_fpfh.setSearchMethod(tree);
-  est_fpfh.setKSearch(10);
-  est_fpfh.compute(*fpfh);
-  return fpfh;
+	std::vector<int> indices_tgt;
+	pcl::removeNaNFromPointCloud(*cloud_tgt_o, *cloud_tgt_o, indices_tgt);
+	// std::cout << "remove *cloud_tgt_o nan" << endl;
+
+  float downsample_rate = 0.002;
+  //下采样滤波
+	pcl::VoxelGrid<pcl::PointXYZRGB> voxel_grid;
+	voxel_grid.setLeafSize(downsample_rate, downsample_rate, downsample_rate);
+	voxel_grid.setInputCloud(cloud_src_o);
+  pointcloud::Ptr cloud_src(new pointcloud);
+	voxel_grid.filter(*cloud_src);
+	std::cout << "down size *cloud_src_o from " << cloud_src_o->size() << "to" << cloud_src->size() << endl;
+
+	pcl::VoxelGrid<pcl::PointXYZRGB> voxel_grid_2;
+	voxel_grid_2.setLeafSize(downsample_rate, downsample_rate, downsample_rate);
+	voxel_grid_2.setInputCloud(cloud_tgt_o);
+  pointcloud::Ptr cloud_tgt(new pointcloud);
+	voxel_grid_2.filter(*cloud_tgt);
+	std::cout << "down size *cloud_tgt_o.pcd from " << cloud_tgt_o->size() << "to" << cloud_tgt->size() << endl;
+
+  float ne_radius = 0.02;
+	//计算表面法线
+	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne_src;
+	ne_src.setInputCloud(cloud_src);
+	pcl::search::KdTree< pcl::PointXYZRGB>::Ptr tree_src(new pcl::search::KdTree< pcl::PointXYZRGB>());
+	ne_src.setSearchMethod(tree_src);
+	pcl::PointCloud<pcl::Normal>::Ptr cloud_src_normals(new pcl::PointCloud< pcl::Normal>);
+	ne_src.setRadiusSearch(ne_radius);
+	ne_src.compute(*cloud_src_normals);
+	// std::cout << "compute *cloud_src_normals" << endl;
+
+	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne_tgt;
+	ne_tgt.setInputCloud(cloud_tgt);
+	pcl::search::KdTree< pcl::PointXYZRGB>::Ptr tree_tgt(new pcl::search::KdTree< pcl::PointXYZRGB>());
+	ne_tgt.setSearchMethod(tree_tgt);
+	pcl::PointCloud<pcl::Normal>::Ptr cloud_tgt_normals(new pcl::PointCloud< pcl::Normal>);
+	//ne_tgt.setKSearch(20);
+	ne_tgt.setRadiusSearch(ne_radius);
+	ne_tgt.compute(*cloud_tgt_normals);
+	// std::cout << "compute *cloud_tgt_normals" << endl;
+
+  float fpfh_radius = 0.03; // must larger than ne_radius!
+
+	//计算FPFH
+	pcl::FPFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::FPFHSignature33> fpfh_src;
+	fpfh_src.setInputCloud(cloud_src);
+	fpfh_src.setInputNormals(cloud_src_normals);
+	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree_src_fpfh(new pcl::search::KdTree<pcl::PointXYZRGB>);
+	fpfh_src.setSearchMethod(tree_src_fpfh);
+	pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfhs_src(new pcl::PointCloud<pcl::FPFHSignature33>());
+	fpfh_src.setRadiusSearch(fpfh_radius);
+	fpfh_src.compute(*fpfhs_src);
+	// std::cout << "compute *cloud_src fpfh" << endl;
+
+	pcl::FPFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::FPFHSignature33> fpfh_tgt;
+	fpfh_tgt.setInputCloud(cloud_tgt);
+	fpfh_tgt.setInputNormals(cloud_tgt_normals);
+	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree_tgt_fpfh(new pcl::search::KdTree<pcl::PointXYZRGB>);
+	fpfh_tgt.setSearchMethod(tree_tgt_fpfh);
+	pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfhs_tgt(new pcl::PointCloud<pcl::FPFHSignature33>());
+	fpfh_tgt.setRadiusSearch(fpfh_radius);
+	fpfh_tgt.compute(*fpfhs_tgt);
+	// std::cout << "compute *cloud_tgt fpfh" << endl;
+
+	//SAC配准
+	pcl::SampleConsensusInitialAlignment<pcl::PointXYZRGB, pcl::PointXYZRGB, pcl::FPFHSignature33> scia;
+	scia.setInputSource(cloud_src);
+	scia.setInputTarget(cloud_tgt);
+	scia.setSourceFeatures(fpfhs_src);
+	scia.setTargetFeatures(fpfhs_tgt);
+	//scia.setMinSampleDistance(1);
+	//scia.setNumberOfSamples(2);
+	//scia.setCorrespondenceRandomness(20);
+  pointcloud::Ptr sac_result(new pointcloud);
+
+	scia.align(*sac_result);
+	// std::cout << "sac has converged:" << scia.hasConverged() << "  score: " << scia.getFitnessScore() << endl;
+	Eigen::Matrix4d sac_trans;
+	sac_trans = scia.getFinalTransformation().cast<double>();
+	// std::cout << "sac_trans " << sac_trans << endl;
+  FPFH_FitnessScore = scia.getFitnessScore();
+
+  output_cloud = sac_result;
+	// //pcl::io::savePCDFileASCII("bunny_transformed_sac.pcd", *sac_result);
+  // pcl::toROSMsg(*output_cloud, FPFH_output);    //第一個引數是輸入，後面的是輸出
+  // //Specify the frame that you want to publish
+  // FPFH_output.header.frame_id = "camera_depth_optical_frame";
+  // //釋出命令
+  // pubFPFH.publish (FPFH_output);
+
+  return sac_trans;
 }
 
-void do_FPFH(pointcloud::Ptr source, pointcloud::Ptr target, pointcloud::Ptr align)
+Eigen::Matrix4d  
+do_ICP(pointcloud::Ptr &target, 
+       pointcloud::Ptr &source,
+       double &icp_FitnessScore)
 {
-  clock_t start, end, time;
-  start  = clock();
+  ICPResult tmp_result;
 
-  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr source_tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
-  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr target_tree (new pcl::search::KdTree<pcl::PointXYZRGB> ());
+  //ICP
+  int iterations = 50000*2;
+  pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp; //创建ICP对象，用于ICP配准
 
-  fpfhFeature::Ptr source_fpfh =  compute_fpfh_feature(source, source_tree);
-  fpfhFeature::Ptr target_fpfh =  compute_fpfh_feature(target, target_tree);
+  icp.setInputSource(source); //设置输入点云
+  icp.setInputTarget(target); //设置目标点云（输入点云进行仿射变换，得到目标点云）
+  // icp.setMaxCorrespondenceDistance(1);// Set the max correspondence distance (e.g., correspondences with higher distances will be ignored)
+  icp.setMaximumIterations(iterations);    //criterion1: 设置最大迭代次数iterations=true
+  icp.setTransformationEpsilon(1e-8);     //criterion2: transformation epsilon 
 
-  //對齊(佔用了大部分執行時間)
-  pcl::SampleConsensusPrerejective<pcl::PointXYZRGB, pcl::PointXYZRGB, pcl::FPFHSignature33> scp;
-  scp.setInputSource(source);
-  scp.setSourceFeatures(source_fpfh);
-  scp.setInputTarget(target);
-  scp.setTargetFeatures(target_fpfh);
+  icp.setEuclideanFitnessEpsilon(0.00001);   // Set the euclidean distance difference epsilon (criterion 3)    
 
-  scp.setNumberOfSamples(3);  //設定每次迭代計算中使用的樣本數量（可省）,可節省時間
-  scp.setCorrespondenceRandomness(5); //設定計算協方差時選擇多少近鄰點，該值越大，協防差越精確，但是計算效率越低.(可省)
-  scp.setMaximumIterations(50000);
-  scp.setSimilarityThreshold(0.9f);
-  scp.setMaxCorrespondenceDistance(2.5f * 0.005);
-  scp.setInlierFraction(0.25f);
-  scp.align(*align); 
+  pointcloud::Ptr output_cloud(new pointcloud);
+  
+  output_cloud->clear();
 
-  if (!scp.hasConverged())
+  icp.align(*output_cloud);          //匹配后源点云
+  
+  // //icp.setMaximumIterations(1);  // 设置为1以便下次调用
+  // std::cout << "Applied " << iterations << " ICP iteration(s)"<< std::endl;
+  Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
+  transformation_matrix = icp.getFinalTransformation().cast<double>();
+
+  if (icp.hasConverged())//icp.hasConverged ()=1（true）输出变换矩阵的适合性评估
   {
-    cout << "Alignment failed!" << endl;
+      // std::cout << "\nICP has converged, score is " << icp.getFitnessScore() << std::endl;
+      transformation_matrix = icp.getFinalTransformation().cast<double>();
+      tmp_result.icp_error = icp.getFitnessScore();
+      tmp_result.cloud = output_cloud;
+      tmp_result.tf_matrix = transformation_matrix;
+      // std::cout << "transformation_matrix "<<transformation_matrix<<endl;
+      // icp_result.push_back(tmp_result);
+      icp_FitnessScore = tmp_result.icp_error;
   }
   else
   {
-    Eigen::Matrix4f transformation = scp.getFinalTransformation();
-    cout << "R" << endl;
-    cout << transformation(0, 0) << ", " << transformation(0, 1) << ", " << transformation(0, 2) << endl;
-    cout << transformation(1, 0) << ", " << transformation(1, 1) << ", " << transformation(1, 2) << endl;
-    cout << transformation(2, 0) << ", " << transformation(2, 1) << ", " << transformation(2, 2) << endl;
-    cout << "t" << endl;
-    cout << transformation(0, 3) << ", " << transformation(1, 3) << ", " << transformation(2, 3) << endl;
-  }
-
-  end = clock();
-  cout <<"calculate time is: "<< float (end-start)/CLOCKS_PER_SEC<<endl;
+      PCL_ERROR("\nICP has not converged.\n");
+  }  
+  return transformation_matrix;
 }
 
 bool do_PointcloudProcess()
@@ -176,11 +272,18 @@ bool do_PointcloudProcess()
   // cout << "Master_Filter_Cloud->size() " << Master_Filter_Cloud->size() << endl; 
   // cout << "Sub_Filter_Cloud->size() " << Sub_Filter_Cloud->size() << endl; 
 
+  double ICP_FitnessScore, FPFH_FitnessScore;
+  Eigen::Matrix4d FPFH_Transform, ICP_Transform;
+
   if((Master_Filter_Cloud->size()!= 0) && (Sub_Filter_Cloud->size()!= 0))
   {
       cout << "Doing FPFH..." << endl;
-      do_FPFH(Master_Filter_Cloud, Sub_Filter_Cloud, Alignment_Cloud);
+      FPFH_Transform = do_FPFH(Master_Filter_Cloud, Sub_Filter_Cloud, Alignment_Cloud, FPFH_FitnessScore);
       cout << "Done FPFH..." << endl;
+      cout << "FPFH_FitnessScore " << FPFH_FitnessScore << endl;
+
+      // ICP_Transform = do_ICP(Master_Filter_Cloud, Alignment_Cloud, ICP_FitnessScore);
+
 
       pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);
       Alignment_Cloud_msg.header.frame_id = "master_rgb_camera_link";

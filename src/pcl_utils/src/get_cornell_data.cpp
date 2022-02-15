@@ -11,7 +11,7 @@ int main (int argc, char** argv)
   pcl_utils::snapshot snapshot_srv;
   int data_series_number = atoll(argv[1]);
 
-  cout << "data series nember : " << data_series_number <<endl;
+  cout << "data series nember! : " << data_series_number <<endl;
 
   if (data_series_number > 10 and data_series_number < 100)
   {

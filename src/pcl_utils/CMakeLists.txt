@@ -2,12 +2,14 @@ cmake_minimum_required(VERSION 3.0.2)
 project(pcl_utils)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+
 add_compile_options(-std=c++11)
 set(PCL_INCLUDE_DIRS /usr/include/pcl-1.8)
-add_compile_options(-std=c++14)
-set(CMAKE_CXX_FLAGS "-std=c++11 -O3")
-#set(PCL_INCLUDE_DIRS /usr/include/pcl-1.10)
+
+# add_compile_options(-std=c++14)
+# set(CMAKE_CXX_FLAGS "-std=c++11 -O3")
+# set(PCL_INCLUDE_DIRS /usr/include/pcl-1.10)
+
 find_package(OpenCV REQUIRED)
 
 ## Find catkin macros and libraries
@@ -17,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   pcl_ros
   roscpp
+  std_msgs
   sensor_msgs
   message_generation
   image_transport
@@ -85,6 +88,7 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
+   std_msgs
    sensor_msgs
 )
 
@@ -128,6 +132,7 @@ catkin_package(
   message_runtime
   std_msgs 
   sensor_msgs
+  message_generation
 )
 
 ###########
@@ -222,31 +227,32 @@ include_directories(
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_pcl_utils.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-add_executable(example src/example.cpp)
-target_link_libraries(example ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
 
 add_executable(pcl_service src/pcl_service.cpp)
-target_link_libraries(pcl_service ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+target_link_libraries(pcl_service ${catkin_LIBRARIES} ${OpenCV_LIBS})
 add_dependencies(pcl_service ${catkin_EXPORTED_TARGETS})
 
 add_executable(cloud_alignment src/cloud_alignment.cpp)
-target_link_libraries(cloud_alignment ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS} ${OpenCV_LIBS})
+target_link_libraries(cloud_alignment ${catkin_LIBRARIES} ${OpenCV_LIBS})
 add_dependencies(cloud_alignment ${catkin_EXPORTED_TARGETS})
 
+add_executable(example src/example.cpp)
+target_link_libraries(example ${catkin_LIBRARIES})
+
 add_executable(get_cornell_data src/get_cornell_data.cpp)
-target_link_libraries(get_cornell_data ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+target_link_libraries(get_cornell_data ${catkin_LIBRARIES})
 add_dependencies(get_cornell_data ${catkin_EXPORTED_TARGETS})
 
 add_executable(set_Input_PointCloud src/set_Input_PointCloud.cpp)
-target_link_libraries(set_Input_PointCloud ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+target_link_libraries(set_Input_PointCloud ${catkin_LIBRARIES})
 add_dependencies(set_Input_PointCloud ${catkin_EXPORTED_TARGETS})
 
 add_executable(load_Input_PointCloud src/load_Input_PointCloud.cpp)
-target_link_libraries(load_Input_PointCloud ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+target_link_libraries(load_Input_PointCloud ${catkin_LIBRARIES})
 add_dependencies(load_Input_PointCloud ${catkin_EXPORTED_TARGETS})
 
 add_executable(set_Z_Passthrough src/set_Z_Passthrough.cpp)
-target_link_libraries(set_Z_Passthrough ${catkin_LIBRARIES} ${PCL_INCLUDE_DIRS})
+target_link_libraries(set_Z_Passthrough ${catkin_LIBRARIES})
 add_dependencies(set_Z_Passthrough ${catkin_EXPORTED_TARGETS})
 # endif()
 
