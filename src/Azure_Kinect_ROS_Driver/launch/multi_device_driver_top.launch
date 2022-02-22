@@ -6,7 +6,7 @@ Licensed under the MIT License.
 <launch>
   <arg name="tf_prefix"         default="" />                       <!-- Prefix added to tf frame IDs. It typically contains a trailing '_' unless empty. -->
   <arg name="master_tf_prefix"         default="master_" />
-  <arg name="sub_tf_prefix"         default="sub_" />
+  <arg name="top_tf_prefix"         default="top_" />
   <arg name="overwrite_robot_description" default="true" />         <!-- Flag to publish a standalone azure_description instead of the default robot_descrition parameter-->
 
   <!-- <group if="$(arg overwrite_robot_description)">
@@ -39,7 +39,7 @@ Licensed under the MIT License.
   <arg name="required"                default="false" />          <!-- Argument which specified if the entire launch file should terminate if the node dies -->
   <arg name="sensor_sn"               default="" />               <!-- Sensor serial number. If none provided, the first sensor will be selected -->
   <arg name="master_sensor_sn"               default="000328112112" />               <!-- Sensor serial number of the master device. If none provided, the first sensor will be selected -->
-  <arg name="sub_sensor_sn"               default="000289212112" />               <!-- Sensor serial number of the subordinate device. If none provided, the first sensor will be selected -->
+  <arg name="top_sensor_sn"               default="000363212212" />               <!-- Sensor serial number of the subordinate device. If none provided, the first sensor will be selected -->
   <arg name="recording_file"          default="" />               <!-- Absolute path to a mkv recording file which will be used with the playback api instead of opening a device -->
   <arg name="recording_loop_enabled"  default="false" />          <!-- If set to true the recording file will rewind the beginning once end of file is reached -->
   <arg name="body_tracking_enabled"           default="false" />  <!-- If set to true the joint positions will be published as marker arrays -->
@@ -75,7 +75,7 @@ Licensed under the MIT License.
     <param name="subordinate_delay_off_master_usec" type="int" value="0"/>
   </node>
 
-  <node pkg="azure_kinect_ros_driver" type="node" name="azure_kinect_ros_driver_sub" output="screen" required="$(arg required)" ns="sub">
+  <node pkg="azure_kinect_ros_driver" type="node" name="azure_kinect_ros_driver_sub" output="screen" required="$(arg required)" ns="top">
     <param name="depth_enabled"     type="bool"   value="$(arg depth_enabled)" />
     <param name="depth_mode"        type="string" value="$(arg depth_mode)" />
     <param name="color_enabled"     type="bool"   value="$(arg color_enabled)" />
@@ -85,8 +85,8 @@ Licensed under the MIT License.
     <param name="point_cloud"       type="bool"   value="$(arg point_cloud)" />
     <param name="rgb_point_cloud"   type="bool"   value="$(arg rgb_point_cloud)" />
     <param name="point_cloud_in_depth_frame"   type="bool"   value="$(arg point_cloud_in_depth_frame)" />
-    <param name="sensor_sn"         type="string" value="$(arg sub_sensor_sn)" />
-    <param name="tf_prefix"         type="string" value="$(arg sub_tf_prefix)" />
+    <param name="sensor_sn"         type="string" value="$(arg top_sensor_sn)" />
+    <param name="tf_prefix"         type="string" value="$(arg top_tf_prefix)" />
     <param name="recording_file"          type="string" value="$(arg recording_file)" />
     <param name="recording_loop_enabled"  type="bool"   value="$(arg recording_loop_enabled)" />
     <param name="body_tracking_enabled"           type="bool"   value="$(arg body_tracking_enabled)" />
