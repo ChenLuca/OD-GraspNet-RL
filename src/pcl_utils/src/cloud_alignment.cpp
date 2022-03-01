@@ -72,9 +72,12 @@ float z_passthrough = 1.5;
 // Eigen::Quaterniond quaterniond_sub(0.272903030724, 0.657920104024, 0.650074132376, -0.264704920542);
 
 //Luis
-Eigen::Quaterniond quaterniond_master(0.27037084752, -0.649931503521, 0.655592852987, -0.273288595911);
+//Eigen::Quaterniond quaterniond_master(0.27037084752, -0.649931503521, 0.655592852987, -0.273288595911);
+
+//Master flat
+Eigen::Quaterniond quaterniond_master(0.504304224981, -0.491361466051, 0.49469137173, -0.509432630563);
 Eigen::Quaterniond quaterniond_sub(0.274328297279, -0.660537452545, -0.647729813092, 0.262450658847);
-Eigen::Quaterniond quaterniond_top(0.0225076630627, 0.999697873202, -0.00961312657294, 0.00227051032845);
+Eigen::Quaterniond quaterniond_top(0.0182111725735, 0.999831463789, -0.00215005904146, 0.00088003196994);
 
 
 Eigen::Matrix3d rotation_master_d = quaterniond_master.normalized().toRotationMatrix();
@@ -366,14 +369,20 @@ bool do_PointcloudProcess()
   //Luis
   // transform_master_rotate.translation() << -0.413239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
   // transform_sub_rotate.translation() <<  0.408131591283 * sub_factor, -0.593587422162 * sub_factor, 0.165139595754 * sub_factor;
-  transform_master_rotate.translation() << -0.438239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
-  
-  transform_sub_rotate.translation() <<  0.433131591283 * sub_factor, -0.603587422162 * sub_factor, 0.175139595754 * sub_factor;
 
-  transform_top_rotate.translation() <<  0.0241848918579 * top_factor, -0.686849740612 * top_factor, 0.560243998565 * top_factor;
+
+  // transform_master_rotate.translation() << -0.438239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
+
+  //Master flat
+  transform_master_rotate.translation() << -0.420740404584 * master_factor, -0.629285700303 * master_factor, -0.0815518523154 * master_factor;
+
+  
+  // transform_sub_rotate.translation() <<  0.433131591283 * sub_factor, -0.603587422162 * sub_factor, 0.175139595754 * sub_factor;
+
+  transform_top_rotate.translation() <<  0.0453898187424 * top_factor, -0.684868722725 * top_factor, 0.567078155927 * top_factor;
 
   transform_master_rotate.rotate(rotation_master);
-  transform_sub_rotate.rotate(rotation_sub);
+  // transform_sub_rotate.rotate(rotation_sub);
   transform_top_rotate.rotate(rotation_top);
 
   // transform_sub_rotate.translation() << 0.58089027569 * sub_factor, -0.176678651584 * sub_factor, 0.417474254369 * sub_factor;
@@ -394,7 +403,7 @@ bool do_PointcloudProcess()
       pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master_rotate);
       // pcl::transformPointCloud(*Master_Rotate_Cloud, *Master_Rotate_Cloud, transform_master_rotate);
 
-      pcl::transformPointCloud(*Sub_Filter_Cloud, *Sub_Rotate_Cloud, transform_sub_rotate);
+      // pcl::transformPointCloud(*Sub_Filter_Cloud, *Sub_Rotate_Cloud, transform_sub_rotate);
 
       pcl::transformPointCloud(*Top_Filter_Cloud, *Top_Rotate_Cloud, transform_top_rotate);
 

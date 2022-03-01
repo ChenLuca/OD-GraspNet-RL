@@ -38,7 +38,7 @@ Licensed under the MIT License.
   <arg name="point_cloud_in_depth_frame" default="false" />        <!-- Whether the RGB pointcloud is rendered in the depth frame (true) or RGB frame (false). Will either match the resolution of the depth camera (true) or the RGB camera (false). -->
   <arg name="required"                default="false" />          <!-- Argument which specified if the entire launch file should terminate if the node dies -->
   <arg name="sensor_sn"               default="" />               <!-- Sensor serial number. If none provided, the first sensor will be selected -->
-  <arg name="master_sensor_sn"               default="000328112112" />               <!-- Sensor serial number of the master device. If none provided, the first sensor will be selected -->
+  <arg name="master_sensor_sn"               default="000289212112" />               <!-- Sensor serial number of the master device. If none provided, the first sensor will be selected -->
   <arg name="top_sensor_sn"               default="000363212212" />               <!-- Sensor serial number of the subordinate device. If none provided, the first sensor will be selected -->
   <arg name="recording_file"          default="" />               <!-- Absolute path to a mkv recording file which will be used with the playback api instead of opening a device -->
   <arg name="recording_loop_enabled"  default="false" />          <!-- If set to true the recording file will rewind the beginning once end of file is reached -->
