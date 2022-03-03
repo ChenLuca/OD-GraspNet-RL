@@ -146,6 +146,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_approach_vector_plane_cloud(n
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_open_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 
+//Pointcloud of retransform projected open vector plane cloud
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr alignment_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
 struct Point_with_Pixel
 {
   cv::Point3f point;
@@ -1009,6 +1012,55 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   do_VoxelGrid(filter_cloud, filter_cloud);
 
   do_Mapping_Image();
+}
+
+void do_Mapping_AlignmentCloud_Image()
+{
+ //=== Get projected rgb & depth image form pointcloud === [begin]
+  //reset values in the images
+  Mapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  Mapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
+  //get random number
+  // float random_rotation = unif(generator);
+
+  viewpoint_translation[0] = 0.0;
+  viewpoint_translation[1] = 0.0;
+  viewpoint_translation[2] = 0.0;
+  viewpoint_rotation[0] = 0.0;
+  viewpoint_rotation[1] = 0.0;
+  viewpoint_rotation[2] = 0.0;
+
+  if(alignment_cloud->size()!=0)
+  {
+    std::vector<Point_with_Pixel> alignment_cloud_PwPs;
+
+    do_PerspectiveProjection(alignment_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
+
+    //do dilate for sparse image result
+    cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
+    cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
+    cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
+
+    sensor_msgs::ImagePtr rgb_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", Mapping_RGB_Image).toImageMsg();
+    ros::Time rgb_begin = ros::Time::now();
+    rgb_msg->header.stamp = rgb_begin;
+    pubProjectRGBImage.publish(rgb_msg);
+
+    sensor_msgs::ImagePtr depth_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", Mapping_Depth_Image).toImageMsg();
+    ros::Time depth_begin = ros::Time::now();
+    depth_msg->header.stamp = depth_begin;
+    pubProjectDepthImage.publish(depth_msg);
+    //=== Get projected rgb & depth image form pointcloud === [end]
+  }
+}
+
+void do_Callback_AlignmentPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+{  
+  // ROS to PCL
+  pcl::fromROSMsg(*cloud_msg, *alignment_cloud);
+
+  do_Mapping_AlignmentCloud_Image();
   
 }
 
@@ -1036,7 +1088,6 @@ bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Respon
   string Name_Depth_Image_root = "d.tiff";
   string Name_PCD_root = ".pcd";
   string Name_txt_root = ".txt";
-
 
   //save RGB image as .png format
   cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_RGB_Image_root, Mapping_RGB_Image);
@@ -1693,6 +1744,9 @@ int main (int argc, char** argv)
 
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
+
+  // Create ROS subscriber for the input point cloud (azure kinect dk)
+  ros::Subscriber subAlignmentCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/Alignment_Cloud", 1, do_Callback_AlignmentPointCloud);
 
   // Create ROS subscriber for the result of dl grasp (2D grasp point)
   ros::Subscriber subDLGraspResult = nh.subscribe<pcl_utils::dl_grasp_result> ("/dl_grasp/result", 1, do_Callback_DL_Grasp_Result);
