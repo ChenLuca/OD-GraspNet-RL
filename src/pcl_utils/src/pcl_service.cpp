@@ -145,8 +145,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_approach_vector_plane_cloud(n
 //Pointcloud of retransform projected open vector plane cloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr retransform_open_vector_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr top_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-//Pointcloud of retransform projected open vector plane cloud
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr alignment_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 struct Point_with_Pixel
@@ -1014,7 +1014,7 @@ void do_Callback_PointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   do_Mapping_Image();
 }
 
-void do_Mapping_AlignmentCloud_Image()
+void do_Mapping_TopCam_Image()
 {
  //=== Get projected rgb & depth image form pointcloud === [begin]
   //reset values in the images
@@ -1031,11 +1031,11 @@ void do_Mapping_AlignmentCloud_Image()
   viewpoint_rotation[1] = 0.0;
   viewpoint_rotation[2] = 0.0;
 
-  if(alignment_cloud->size()!=0)
+  if(top_cloud->size()!=0)
   {
-    std::vector<Point_with_Pixel> alignment_cloud_PwPs;
+    std::vector<Point_with_Pixel> TopCam_cloud_PwPs;
 
-    do_PerspectiveProjection(alignment_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
+    do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, TopCam_cloud_PwPs, fx, fy, cx, cy);
 
     //do dilate for sparse image result
     cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
@@ -1055,13 +1055,20 @@ void do_Mapping_AlignmentCloud_Image()
   }
 }
 
+void do_Callback_TopCamPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+{  
+  // ROS to PCL
+  pcl::fromROSMsg(*cloud_msg, *top_cloud);
+
+  do_Mapping_TopCam_Image();
+}
+
+
+
 void do_Callback_AlignmentPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {  
   // ROS to PCL
-  pcl::fromROSMsg(*cloud_msg, *alignment_cloud);
-
-  do_Mapping_AlignmentCloud_Image();
-  
+  pcl::fromROSMsg(*cloud_msg, *alignment_cloud);  
 }
 
 string SaveImage_Counter_Wrapper(int num, int object_number)
@@ -1082,7 +1089,7 @@ string SaveImage_Counter_Wrapper(int num, int object_number)
 
 bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
 {
-  string Save_Data_path = "/home/luca/datasets/my_grasp_dataset/";
+  string Save_Data_path = "/home/ur5/datasets/GraspPointDataset_new/";
   string Name_pcd = "pcd";
   string Name_RGB_Image_root = "r.png";
   string Name_Depth_Image_root = "d.tiff";
@@ -1095,7 +1102,7 @@ bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Respon
   //save depth image as .tiff format
   cv::imwrite(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_Depth_Image_root, Mapping_Depth_Image);
 
-  pcl::io::savePCDFileASCII (Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_PCD_root, *filter_cloud);
+  pcl::io::savePCDFileASCII (Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_PCD_root, *alignment_cloud);
   
   ofstream ofs;
   ofs.open(Save_Data_path + Name_pcd + SaveImage_Counter_Wrapper(take_picture_counter, req.call) + Name_txt_root);
@@ -1122,11 +1129,11 @@ bool do_setPointCloud(pcl_utils::setPointCloud::Request &req, pcl_utils::setPoin
 {
   cout<<"Set Input PointCloud"<<endl;
   
-  pcl::copyPointCloud(*filter_cloud, *now_cloud);
+  pcl::copyPointCloud(*filter_cloud, *alignment_cloud);
   Set_Input_PointCloud = true;
 
-  pcl::toROSMsg(*now_cloud, now_cloud_output);
-  now_cloud_output.header.frame_id = "depth_camera_link";
+  pcl::toROSMsg(*alignment_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "top_rgb_camera_link";
   pubNowCloud.publish(now_cloud_output);
 
   res.back = 0;
@@ -1144,7 +1151,7 @@ bool do_setZPassthrough(pcl_utils::setZPassthrough::Request &req, pcl_utils::set
 
 bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
 {
-  string Load_File_path = "/home/luca/datasets/GraspPointDataset/";
+  string Load_File_path = "/home/ur5/datasets/GraspPointDataset_new/";
   string Name_pcd = "pcd99";
   string Name_PCD_root = ".pcd";
   string PCD_File_Name;
@@ -1163,7 +1170,7 @@ bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadP
 
   PCD_File_Name = Load_File_path + Name_pcd + PCD_Num_string + Name_PCD_root;
 
-  if (pcl::io::loadPCDFile<pcl::PointXYZRGB> (PCD_File_Name, *now_cloud) == -1) //* load the file
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGB> (PCD_File_Name, *alignment_cloud) == -1) //* load the file
   {
     PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
     return false;
@@ -1171,8 +1178,8 @@ bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadP
 
   cout<<"Load Input PointCloud"<<endl;
 
-  pcl::toROSMsg(*now_cloud, now_cloud_output);
-  now_cloud_output.header.frame_id = "depth_camera_link";
+  pcl::toROSMsg(*alignment_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "top_rgb_camera_link";
   pubNowCloud.publish(now_cloud_output);
 
   ifstream ifs;
@@ -1225,8 +1232,21 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
   
   pcl_utils::RL_Env_msg RL_Env;
 
-  if(now_cloud->size()!=0)
+  cout << "in do_PointcloudProcess" << endl;
+  cout << "alignment_cloud->size() " << alignment_cloud->size() << endl;
+  if(alignment_cloud->size()!=0)
   {
+    // float top_factor = 1;
+
+    // Eigen::Quaterniond quaterniond_top(0.00677580204438, 0.999927007232, -0.00831166644454, -0.00556640961782);
+    // Eigen::Matrix3d rotation_top_d = quaterniond_top.normalized().toRotationMatrix();
+    // Eigen::Matrix3f rotation_top = rotation_top_d.cast <float>();
+    // Eigen::Affine3f transform_top_rotate = Eigen::Affine3f::Identity();
+    // transform_top_rotate.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
+    // transform_top_rotate.rotate(rotation_top);
+    // pcl::transformPointCloud(*alignment_cloud, *alignment_cloud, transform_top_rotate.inverse());
+
+    cout << "alignment_cloud->size()!=0" << endl;
 
     //=== Get grab pointclout & count it's number === [begin]
     float grasp_angle = dl_grasp_input.angle;
@@ -1239,14 +1259,15 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
     oan_vector plane_coefficients_vector;
 
-    std::vector<Point_with_Pixel> now_cloud_PwPs;
+    std::vector<Point_with_Pixel> alignment_cloud_PwPs;
 
-    do_PerspectiveProjection(now_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, now_cloud_PwPs, fx, fy, cx, cy);
+    do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
 
     float Grap_Point_Num, Finger_Grap_Point_Num;
     
-    if(do_calculate_number_of_pointcloud(dl_grasp_predict, grasp_angle, now_cloud_PwPs, now_cloud, grasp_3D, plane_coefficients_vector, Grap_Point_Num, Finger_Grap_Point_Num))
+    if(do_calculate_number_of_pointcloud(dl_grasp_predict, grasp_angle, alignment_cloud_PwPs, alignment_cloud, grasp_3D, plane_coefficients_vector, Grap_Point_Num, Finger_Grap_Point_Num))
     {
+      cout << "do_calculate_number_of_pointcloud" << endl;
       float *Rotate_angle = new float[3];
 
       RL_Env.grab_point_num = Grap_Point_Num;
@@ -1289,27 +1310,27 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
                 z_dist);
 
       pcl::toROSMsg(*retransform_normal_vector_plane_cloud, retransform_project_normal_vector_plane_output);
-      retransform_project_normal_vector_plane_output.header.frame_id = "depth_camera_link";
+      retransform_project_normal_vector_plane_output.header.frame_id = "top_rgb_camera_link";
       pubRetransformProjectNormalVectorPlaneCloud.publish(retransform_project_normal_vector_plane_output);
 
       pcl::toROSMsg(*retransform_approach_vector_plane_cloud, retransform_project_approach_vector_plane_output);
-      retransform_project_approach_vector_plane_output.header.frame_id = "depth_camera_link";
+      retransform_project_approach_vector_plane_output.header.frame_id = "top_rgb_camera_link";
       pubRetransformProjectApproachVectorPlaneCloud.publish(retransform_project_approach_vector_plane_output);
 
       pcl::toROSMsg(*retransform_open_vector_plane_cloud, retransform_project_open_vector_plane_output);
-      retransform_project_open_vector_plane_output.header.frame_id = "depth_camera_link";
+      retransform_project_open_vector_plane_output.header.frame_id = "top_rgb_camera_link";
       pubRetransformProjectOpenVectorPlaneCloud.publish(retransform_project_open_vector_plane_output);
 
       pcl::toROSMsg(*grab_cloud, grab_output);
-      grab_output.header.frame_id = "depth_camera_link";
+      grab_output.header.frame_id = "top_rgb_camera_link";
       pubGrabPointClouds.publish(grab_output);
 
       pcl::toROSMsg(*grab_cloud_left, grab_output_left);
-      grab_output_left.header.frame_id = "depth_camera_link";
+      grab_output_left.header.frame_id = "top_rgb_camera_link";
       pubGrabPointCloudsLeft.publish(grab_output_left);
 
       pcl::toROSMsg(*grab_cloud_right, grab_output_right);
-      grab_output_right.header.frame_id = "depth_camera_link";
+      grab_output_right.header.frame_id = "top_rgb_camera_link";
       pubGrabPointCloudsRight.publish(grab_output_right);
 
       //Grab cloud normal
@@ -1323,7 +1344,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
         geometry_msgs::PoseStamped object_pose;
 
-        object_pose.header.frame_id = "depth_camera_link";
+        object_pose.header.frame_id = "top_rgb_camera_link";
         object_pose.header.stamp = ros::Time::now();;
         object_pose.header.seq = 1;
 
@@ -1368,7 +1389,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
         geometry_msgs::PoseStamped object_pose_left;
 
-        object_pose_left.header.frame_id = "depth_camera_link";
+        object_pose_left.header.frame_id = "top_rgb_camera_link";
         object_pose_left.header.stamp = ros::Time::now();;
         object_pose_left.header.seq = 1;
 
@@ -1421,7 +1442,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
         geometry_msgs::PoseStamped object_pose_right;
 
-        object_pose_right.header.frame_id = "depth_camera_link";
+        object_pose_right.header.frame_id = "top_rgb_camera_link";
         object_pose_right.header.stamp = ros::Time::now();;
         object_pose_right.header.seq = 1;
         
@@ -1613,7 +1634,7 @@ int main (int argc, char** argv)
   ros::NodeHandle nh;
 
   // Creat marker for rviz
-  open_arrow.header.frame_id = "depth_camera_link";
+  open_arrow.header.frame_id = "top_rgb_camera_link";
   open_arrow.ns = "my_namespace";
   open_arrow.id = 0;
   open_arrow.type = visualization_msgs::Marker::ARROW;
@@ -1625,7 +1646,7 @@ int main (int argc, char** argv)
   open_arrow.color.g = 0.0;
   open_arrow.color.b = 0.0;
 
-  normal_arrow.header.frame_id = "depth_camera_link";
+  normal_arrow.header.frame_id = "top_rgb_camera_link";
   normal_arrow.ns = "my_namespace";
   normal_arrow.id = 2;
   normal_arrow.type = visualization_msgs::Marker::ARROW;
@@ -1637,7 +1658,7 @@ int main (int argc, char** argv)
   normal_arrow.color.g = 1.0;
   normal_arrow.color.b = 0.0;
 
-  approach_arrow.header.frame_id = "depth_camera_link";
+  approach_arrow.header.frame_id = "top_rgb_camera_link";
   approach_arrow.ns = "my_namespace";
   approach_arrow.id = 1;
   approach_arrow.type = visualization_msgs::Marker::ARROW;
@@ -1649,7 +1670,7 @@ int main (int argc, char** argv)
   approach_arrow.color.g = 0.0;
   approach_arrow.color.b = 1.0;
 
-  right_finger_point.header.frame_id = "depth_camera_link";
+  right_finger_point.header.frame_id = "top_rgb_camera_link";
   right_finger_point.ns = "my_namespace";
   right_finger_point.id = 1;
   right_finger_point.type = visualization_msgs::Marker::SPHERE;
@@ -1744,6 +1765,10 @@ int main (int argc, char** argv)
 
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subSaveCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/points2", 1, do_Callback_PointCloud);
+
+  // Create ROS subscriber for the input point cloud (azure kinect dk)
+  ros::Subscriber subTopCamCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/top/points2", 1, do_Callback_TopCamPointCloud);
+
 
   // Create ROS subscriber for the input point cloud (azure kinect dk)
   ros::Subscriber subAlignmentCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/Alignment_Cloud", 1, do_Callback_AlignmentPointCloud);

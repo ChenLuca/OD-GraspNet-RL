@@ -34,11 +34,11 @@ depth_bridge = CvBridge()
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
 no_grasps = 1
-loc_old_trained_custom_data = '/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
-loc_grcnn = '/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
-loc_ODR_ConvNet_v4 = '/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_0713_ODR_ConvNet_3_VoV/epoch_16_iou_0.92'
-loc_OD_ConvNet_v1_dilated = '/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_1729_OD_ConvNet_1_dilated/epoch_19_iou_0.92'
-loc_OD_ConvNet_3_csp = "/home/luca/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
+loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
+loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
+loc_ODR_ConvNet_v4 = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_0713_ODR_ConvNet_3_VoV/epoch_16_iou_0.92'
+loc_OD_ConvNet_v1_dilated = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_1729_OD_ConvNet_1_dilated/epoch_19_iou_0.92'
+loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')

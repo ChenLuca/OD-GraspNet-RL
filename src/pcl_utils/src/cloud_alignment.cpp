@@ -67,25 +67,14 @@ struct ICPResult
 
 float z_passthrough = 1.5;
 
-// //handmade = origin
-// Eigen::Quaterniond quaterniond_master(0.275596893174, 0.653160801087, -0.650271165291, 0.273083745374);
-// Eigen::Quaterniond quaterniond_sub(0.272903030724, 0.657920104024, 0.650074132376, -0.264704920542);
-
-//Luis
-//Eigen::Quaterniond quaterniond_master(0.27037084752, -0.649931503521, 0.655592852987, -0.273288595911);
-
 //Master flat
 Eigen::Quaterniond quaterniond_master(0.50485725461, -0.489414097143, 0.488883808847, -0.51631929601);
-// Eigen::Quaterniond quaterniond_sub(0.508095241712, -0.491368293808, -0.495398488181, 0.504952238433);
 Eigen::Quaterniond quaterniond_top(0.00677580204438, 0.999927007232, -0.00831166644454, -0.00556640961782);
 
-
 Eigen::Matrix3d rotation_master_d = quaterniond_master.normalized().toRotationMatrix();
-// Eigen::Matrix3d rotation_sub_d = quaterniond_sub.normalized().toRotationMatrix();
 Eigen::Matrix3d rotation_top_d = quaterniond_top.normalized().toRotationMatrix();
 
 Eigen::Matrix3f rotation_master = rotation_master_d.cast <float>();
-// Eigen::Matrix3f rotation_sub = rotation_sub_d.cast <float>();
 Eigen::Matrix3f rotation_top = rotation_top_d.cast <float>();
 
 //=============
@@ -103,7 +92,7 @@ void do_remove_outerpoint(pointcloud::Ptr &input_cloud, pointcloud::Ptr  &output
   // Create the filtering object
   pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
   sor.setInputCloud (input_cloud);
-  sor.setMeanK (10);
+  sor.setMeanK (20);
   sor.setStddevMulThresh (1.0);
   sor.filter (*output_cloud);
 }
@@ -135,10 +124,10 @@ void do_Callback_PointCloud_Master(const sensor_msgs::PointCloud2ConstPtr& cloud
   // cout<<"Master " << cloud_msg->header.frame_id<<endl;
   // ROS to PCL
   pcl::fromROSMsg(*cloud_msg, *Master_Cloud);
-  float pass_length = 0.5;
+  float pass_length = 0.25;
   do_Passthrough(Master_Cloud, Master_Filter_Cloud, "x", -pass_length, pass_length);
   do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "y", -pass_length, pass_length);
-  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "z", -1, z_passthrough);
+  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "z", -1, 0.8);
   do_VoxelGrid(Master_Filter_Cloud, Master_Filter_Cloud);
   // do_remove_outerpoint(Master_Filter_Cloud, Master_Filter_Cloud);
   
@@ -153,7 +142,7 @@ void do_Callback_PointCloud_Sub(const sensor_msgs::PointCloud2ConstPtr& cloud_ms
 
   do_Passthrough(Sub_Cloud, Sub_Filter_Cloud, "x", -pass_length, pass_length);
   do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "y", -pass_length, pass_length);
-  do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "z", -1, z_passthrough);
+  do_Passthrough(Sub_Filter_Cloud, Sub_Filter_Cloud, "z", -1, 0.8);
   do_VoxelGrid(Sub_Filter_Cloud, Sub_Filter_Cloud);
   // do_remove_outerpoint(Sub_Filter_Cloud, Sub_Filter_Cloud);
 }
@@ -163,10 +152,10 @@ void do_Callback_PointCloud_Top(const sensor_msgs::PointCloud2ConstPtr& cloud_ms
   // ROS to PCL
   pcl::fromROSMsg(*cloud_msg, *Top_Cloud);
   // cout<<"Sub " <<  cloud_msg->header.frame_id<<endl;
-  float pass_length = 0.5;
+  float pass_length = 0.25;
 
   do_Passthrough(Top_Cloud, Top_Filter_Cloud, "x", -pass_length, pass_length);
-  do_Passthrough(Top_Filter_Cloud, Top_Filter_Cloud, "y", -pass_length, pass_length);
+  do_Passthrough(Top_Filter_Cloud, Top_Filter_Cloud, "y", -pass_length-0.07, pass_length-0.075);
   do_Passthrough(Top_Filter_Cloud, Top_Filter_Cloud, "z", -1, z_passthrough);
   do_VoxelGrid(Top_Filter_Cloud, Top_Filter_Cloud);
   // do_remove_outerpoint(Top_Filter_Cloud, Top_Filter_Cloud);
@@ -347,57 +336,48 @@ bool do_PointcloudProcess()
   float sub_factor = 1;
   float top_factor = 1;
 
-  Eigen::Affine3f transform_master_rotate = Eigen::Affine3f::Identity();
-  Eigen::Affine3f transform_master_trans = Eigen::Affine3f::Identity();
-  Eigen::Affine3f transform_sub_rotate = Eigen::Affine3f::Identity();
-  Eigen::Affine3f transform_sub_trans = Eigen::Affine3f::Identity();
-  Eigen::Affine3f transform_top_rotate = Eigen::Affine3f::Identity();
-
-
-  // // origin 
-  // transform_master_trans.translation()  << -0.636337700229 * master_factor, -0.161641404893 * master_factor, 0.416912625503 * master_factor;
-  // transform_sub_trans.translation() << 0.58089027569 * sub_factor, -0.176678651584 * sub_factor, 0.417474254369 * sub_factor;
-  
-  // //handmade
-  // transform_master_trans.translation()  << -0.636337700229 * master_factor, -0.181641404893 * master_factor, 0.437912625503 * master_factor;
-  // transform_sub_trans.translation() << 0.58089027569 * sub_factor, -0.196678651584 * sub_factor, 0.437912625503 * sub_factor;
-
-  //Luis
-  // transform_master_trans.translation()  << -0.413239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
-  // transform_sub_trans.translation() <<  0.408131591283 * sub_factor, -0.593587422162 * sub_factor, 0.165139595754 * sub_factor;
-
-  //Luis
-  // transform_master_rotate.translation() << -0.413239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
-  // transform_sub_rotate.translation() <<  0.408131591283 * sub_factor, -0.593587422162 * sub_factor, 0.165139595754 * sub_factor;
-
-
-  // transform_master_rotate.translation() << -0.438239886412 * master_factor, -0.639418125631 * master_factor, 0.180689880624 * master_factor;
+  Eigen::Affine3f transform_master = Eigen::Affine3f::Identity();
+  Eigen::Affine3f transform_top = Eigen::Affine3f::Identity();
 
   //Master flat
-  transform_master_rotate.translation() << -0.430232458522 * master_factor, -0.63937217783 * master_factor, -0.1074713287062 * master_factor;
+  transform_master.translation() << -0.433232458522 * master_factor, -0.62237217783 * master_factor, -0.1124713287062 * master_factor;
   
-  // transform_sub_rotate.translation() <<  0.410558865103 * sub_factor, -0.591972804353 * sub_factor, -0.1220103242539 * sub_factor;
+  transform_top.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
 
-  transform_top_rotate.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
+  transform_master.rotate(rotation_master);
 
-  transform_master_rotate.rotate(rotation_master);
-  // transform_sub_rotate.rotate(rotation_sub);
-  transform_top_rotate.rotate(rotation_top);
+  transform_top.rotate(rotation_top);
 
-  // transform_sub_rotate.translation() << 0.58089027569 * sub_factor, -0.176678651584 * sub_factor, 0.417474254369 * sub_factor;
 
   if((Master_Filter_Cloud->size()!= 0) && (Top_Filter_Cloud->size()!= 0))
   {
 
-      cout << "===============cloud alignment begin===============" << endl;
+      cout << "[cloud alignment] begin" << endl;
 
+      // //solution 1: both transform to base [begin]
+      // pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master);
+      // pcl::transformPointCloud(*Top_Filter_Cloud, *Top_Rotate_Cloud, transform_top);
+      // *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Rotate_Cloud;
 
-      pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master_rotate);
+      // do_remove_outerpoint(Alignment_Cloud, Alignment_Cloud);
 
-      // pcl::transformPointCloud(*Sub_Filter_Cloud, *Sub_Rotate_Cloud, transform_sub_rotate);
+      // pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);
+      // Alignment_Cloud_msg.header.frame_id = "base";
+      // pubAlignment_Cloud.publish(Alignment_Cloud_msg);
+      // //solution 1: both transform to base [end]
 
-      pcl::transformPointCloud(*Top_Filter_Cloud, *Top_Rotate_Cloud, transform_top_rotate);
+      //==================================================
 
+      //solution 2 : master transform to top[begin]
+      pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master);
+      pcl::transformPointCloud(*Master_Rotate_Cloud, *Master_Rotate_Cloud, transform_top.inverse());
+      *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Filter_Cloud;
+      
+      do_remove_outerpoint(Alignment_Cloud, Alignment_Cloud);
+      pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);
+      Alignment_Cloud_msg.header.frame_id = "top_rgb_camera_link";
+      pubAlignment_Cloud.publish(Alignment_Cloud_msg);
+      //solution 2 : master transform to top[end]
 
       // cout << "Doing FPFH..." << endl;
       // FPFH_Transform = do_FPFH(Master_Rotate_Cloud, Sub_Rotate_Cloud, Alignment_Cloud, FPFH_FitnessScore);
@@ -407,17 +387,8 @@ bool do_PointcloudProcess()
       // cout << "Doing ICP..." << endl;
       // ICP_Transform = do_ICP(Master_Filter_Cloud, Alignment_Cloud, ICP_FitnessScore);
       // cout << "Done ICP..." << endl;
-
-      // *Alignment_Cloud = *Master_Rotate_Cloud + *Sub_Rotate_Cloud;
-      *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Rotate_Cloud;
-
-      do_remove_outerpoint(Alignment_Cloud, Alignment_Cloud);
-
-      pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);
-      Alignment_Cloud_msg.header.frame_id = "base";
-      pubAlignment_Cloud.publish(Alignment_Cloud_msg);
       
-      cout << "===============cloud alignment end===============" << endl;
+      cout << "[cloud alignment] end" << endl;
 
   }
 }
