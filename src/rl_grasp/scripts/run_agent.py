@@ -31,6 +31,7 @@ solve_cudnn_error()
 
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
+
 from rl_grasp.srv import loadPointCloud
 import time
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/DQN_service_3ch_no_ApproachLikelihood/", 'DQN_policy_782.0_8.909841')
+    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", '20220306_DQN_policy_83.0_1.1929423')
 
     saved_policy = tf.saved_model.load(policy_dir)
 

@@ -126,7 +126,7 @@ void do_Callback_PointCloud_Master(const sensor_msgs::PointCloud2ConstPtr& cloud
   pcl::fromROSMsg(*cloud_msg, *Master_Cloud);
   float pass_length = 0.25;
   do_Passthrough(Master_Cloud, Master_Filter_Cloud, "x", -pass_length, pass_length);
-  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "y", -pass_length, pass_length);
+  do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "y", -pass_length, 0.13);
   do_Passthrough(Master_Filter_Cloud, Master_Filter_Cloud, "z", -1, 0.8);
   do_VoxelGrid(Master_Filter_Cloud, Master_Filter_Cloud);
   // do_remove_outerpoint(Master_Filter_Cloud, Master_Filter_Cloud);

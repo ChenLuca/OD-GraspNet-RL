@@ -252,9 +252,9 @@ if __name__ == '__main__':
     AVG_RETURN = []
     STEP = []
 
-    train_loss_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
-    avf_return_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
-    step_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
+    train_loss_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
+    avf_return_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
+    step_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
 
     for _ in range(batch_size):
         collect_step(tf_env, agent.collect_policy, replay_buffer)

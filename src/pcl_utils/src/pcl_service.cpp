@@ -2,6 +2,7 @@
 // PCL specific includes
 #include <sensor_msgs/PointCloud2.h>
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/Point.h"
 #include <visualization_msgs/Marker.h>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
@@ -78,7 +79,8 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNum
                pubLeftLikelihood, pubRightLikelihood, pubApproachLikelihood, pubNormalLikelihood,
                pubNormaldepthNonZero, pubOpendepthNonZero,
                pubNowCloud,
-               pubRL_Env;
+               pubRL_Env,
+               pubGraspPoint3D;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -181,6 +183,9 @@ int take_picture_counter = 0;
 int Mapping_width = 640, Mapping_high = 480;
 cv::Mat Mapping_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
 cv::Mat Mapping_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
+cv::Mat NoUseMapping_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+cv::Mat NoUseMapping_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
 
 cv::Mat Grab_Cloud_Approach_RGB_Image(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
 cv::Mat Grab_Cloud_Approach_Depth_Image(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
@@ -787,7 +792,6 @@ bool do_calculate_number_of_pointcloud(cv::Point2f dl_grasp_predict, float angle
                     Angle_axis_rotation_approach, 
                     Angle_axis_rotation_normal);
   
-  
   for(int i = 0 ; i < PwPs.size() ; i ++)
   {
     if (abs(PwPs[i].pixel.x - dl_grasp_predict.x) < thr & abs(PwPs[i].pixel.y - dl_grasp_predict.y) < thr)//need to be check for more carefully! Maybe multi points can be projected to the same point!
@@ -862,6 +866,7 @@ bool do_calculate_number_of_pointcloud(cv::Point2f dl_grasp_predict, float angle
       std_msgs::Int64 grab_point_num, finger_grab_point_num;
 
       grab_point_num.data = number_of_point;
+
       finger_grab_point_num.data = number_of_point_finger - number_of_point;
 
       pubNumGrabPoint.publish(grab_point_num);
@@ -1220,6 +1225,9 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
   Mapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
   Mapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
 
+  NoUseMapping_RGB_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  NoUseMapping_Depth_Image = cv::Mat(Mapping_high, Mapping_width, CV_8UC1, cv::Scalar(0));
+
   //get random number
   // float random_rotation = unif(generator);
 
@@ -1232,22 +1240,9 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
   
   pcl_utils::RL_Env_msg RL_Env;
 
-  cout << "in do_PointcloudProcess" << endl;
-  cout << "alignment_cloud->size() " << alignment_cloud->size() << endl;
+
   if(alignment_cloud->size()!=0)
   {
-    // float top_factor = 1;
-
-    // Eigen::Quaterniond quaterniond_top(0.00677580204438, 0.999927007232, -0.00831166644454, -0.00556640961782);
-    // Eigen::Matrix3d rotation_top_d = quaterniond_top.normalized().toRotationMatrix();
-    // Eigen::Matrix3f rotation_top = rotation_top_d.cast <float>();
-    // Eigen::Affine3f transform_top_rotate = Eigen::Affine3f::Identity();
-    // transform_top_rotate.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
-    // transform_top_rotate.rotate(rotation_top);
-    // pcl::transformPointCloud(*alignment_cloud, *alignment_cloud, transform_top_rotate.inverse());
-
-    cout << "alignment_cloud->size()!=0" << endl;
-
     //=== Get grab pointclout & count it's number === [begin]
     float grasp_angle = dl_grasp_input.angle;
     grasp_angle = 0;
@@ -1259,15 +1254,19 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
     oan_vector plane_coefficients_vector;
 
-    std::vector<Point_with_Pixel> alignment_cloud_PwPs;
-
-    do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
+    std::vector<Point_with_Pixel> top_cloud_PwPs, alignment_cloud_PwPs;
 
     float Grap_Point_Num, Finger_Grap_Point_Num;
+
+
+    do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, top_cloud_PwPs, fx, fy, cx, cy);
+
+
+    do_PerspectiveProjection(alignment_cloud, NoUseMapping_RGB_Image, NoUseMapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
+
     
     if(do_calculate_number_of_pointcloud(dl_grasp_predict, grasp_angle, alignment_cloud_PwPs, alignment_cloud, grasp_3D, plane_coefficients_vector, Grap_Point_Num, Finger_Grap_Point_Num))
     {
-      cout << "do_calculate_number_of_pointcloud" << endl;
       float *Rotate_angle = new float[3];
 
       RL_Env.grab_point_num = Grap_Point_Num;
@@ -1282,6 +1281,14 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
       grasp_point(0) = grasp_3D[0];
       grasp_point(1) = grasp_3D[1];
       grasp_point(2) = grasp_3D[2];
+      geometry_msgs::Point DL_Grasp_point;
+      DL_Grasp_point.x = grasp_3D[0];
+      DL_Grasp_point.y = grasp_3D[1];
+      DL_Grasp_point.z = grasp_3D[2];
+
+      pubGraspPoint3D.publish(DL_Grasp_point);
+
+      cout << "grasp_3D[0] " << grasp_3D[0] << ", grasp_3D[1] " << grasp_3D[1] << ", grasp_3D[2] " << grasp_3D[2] << endl;
 
       float z_dist = 0.05;
       //rotate point Cloud
@@ -1757,6 +1764,8 @@ int main (int argc, char** argv)
 
   // Create ROS pointcloud publisher for retransform projected open vector plane cloud
   pubRetransformProjectOpenVectorPlaneCloud= nh.advertise<sensor_msgs::PointCloud2> ("/Retransform_project_Open_Vector_PlaneClouds", 30);
+
+  pubGraspPoint3D = nh.advertise<geometry_msgs::Point> ("/DL_Grasp/Point", 30);
 
   pubNowCloud = nh.advertise<sensor_msgs::PointCloud2> ("/Now_Clouds", 30);
 
