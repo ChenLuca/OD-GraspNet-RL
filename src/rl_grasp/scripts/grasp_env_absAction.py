@@ -13,6 +13,7 @@ import pickle
 import random 
 import tensorflow as tf
 
+
 def solve_cudnn_error():
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -30,6 +31,7 @@ solve_cudnn_error()
 
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
+from geometry_msgs.msg import Quaternion
 from rl_training.msg import AngleAxis_rotation_msg
 from rl_training.srv import loadPointCloud
 from rl_training.srv import get_RL_Env

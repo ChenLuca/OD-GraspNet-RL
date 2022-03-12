@@ -19,11 +19,17 @@ roslaunch robotiq_2f_gripper_control robotiq_2f_gripper_RtuNode.launch comport:=
 
 rosrun robotiq_2f_gripper_control Robotiq2FGripperSimpleController.py
 
+#pcl handle
+rosrun pcl_utils pcl_service
+
+#2d grasp predict
+rosrun dl_grasp run_realtime.py
+
+#3d grasp predict
+rosrun rl_grasp run_agent.py 
+
 #ur5 moveit! 
 rosrun ur_move ur_strategy.py 
-
-
-
 
 # hand eye calibration
 roslaunch charuco_detector ur5_eye_to_hand.launch 

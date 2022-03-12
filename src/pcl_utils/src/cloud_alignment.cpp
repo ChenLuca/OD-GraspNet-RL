@@ -67,7 +67,7 @@ struct ICPResult
 
 float z_passthrough = 1.5;
 
-//Master flat
+//w, x, y, z
 Eigen::Quaterniond quaterniond_master(0.50485725461, -0.489414097143, 0.488883808847, -0.51631929601);
 Eigen::Quaterniond quaterniond_top(0.00677580204438, 0.999927007232, -0.00831166644454, -0.00556640961782);
 
@@ -348,6 +348,8 @@ bool do_PointcloudProcess()
 
   transform_top.rotate(rotation_top);
 
+  cout << "Master_Filter_Cloud->size() " << Master_Filter_Cloud->size() << endl;
+  cout << "Top_Filter_Cloud->size() " << Top_Filter_Cloud->size() << endl;
 
   if((Master_Filter_Cloud->size()!= 0) && (Top_Filter_Cloud->size()!= 0))
   {
