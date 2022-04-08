@@ -127,7 +127,7 @@ def do_loadPointCloud(req):
 def compute_avg_return(environment, policy, num_episodes=10):
     total_return = 0.0
     time_start = time.time()
-    num_env = 20
+    num_env = 45
     for _ in range(num_env):
         do_loadPointCloud(1)
         for _ in range(num_episodes):
@@ -176,7 +176,7 @@ log_interval = 200
 num_atoms = 51
 min_q_value = -20
 max_q_value = 20
-n_step_update = 2 
+n_step_update = 1 
 
 num_eval_episodes = 10
 eval_interval = 1000
@@ -211,19 +211,7 @@ if __name__ == '__main__':
 
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
 
-    # my_q_network = tf_agents.networks.q_network.QNetwork(
-    #                 tf_env.observation_spec(), 
-    #                 tf_env.action_spec(), 
-    #                 preprocessing_layers=preprocessing_layers,
-    #                 conv_layer_params=None, 
-    #                 fc_layer_params=(50, 50),
-    #                 dropout_layer_params=None, 
-    #                 activation_fn=tf.keras.activations.relu,
-    #                 kernel_initializer=None, 
-    #                 batch_squash=True, 
-    #                 dtype=tf.float32,
-    #                 name='QNetwork'
-    #             )
+
     categorical_q_net = categorical_q_network.CategoricalQNetwork(
                     tf_env.observation_spec(), 
                     tf_env.action_spec(),
@@ -237,7 +225,7 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
     global_step = tf.compat.v1.train.get_or_create_global_step()
     start_epsilon = 0.1
-    n_of_steps = 150000
+    n_of_steps = 500000
     end_epsilon = 0.0001
     epsilon = tf.compat.v1.train.polynomial_decay(
         start_epsilon,
@@ -296,9 +284,9 @@ if __name__ == '__main__':
     AVG_RETURN = []
     STEP = []
 
-    train_loss_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
-    avf_return_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
-    step_file = "/home/luca/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
+    train_loss_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/TRAIN_LOSS.pkl"
+    avf_return_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/AVG_RETURN.pkl"
+    step_file = "/home/ur5/code/RL-Grasp-with-GRCNN/src/rl_training/scripts/training_result/STEP.pkl"
 
     for _ in range(batch_size):
         collect_step(tf_env, agent.collect_policy, replay_buffer)

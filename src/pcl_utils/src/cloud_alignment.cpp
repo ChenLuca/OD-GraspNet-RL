@@ -65,7 +65,7 @@ struct ICPResult
   float id;
 };
 
-float z_passthrough = 1.5;
+float z_passthrough = 0.75;
 
 //w, x, y, z
 Eigen::Quaterniond quaterniond_master(0.50485725461, -0.489414097143, 0.488883808847, -0.51631929601);

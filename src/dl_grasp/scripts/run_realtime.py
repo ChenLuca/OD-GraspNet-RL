@@ -40,9 +40,12 @@ loc_ODR_ConvNet_v4 = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/train
 loc_OD_ConvNet_v1_dilated = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_1729_OD_ConvNet_1_dilated/epoch_19_iou_0.92'
 loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
 
+loc_grcnn_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/grcnn_jac/epoch_39_iou_0.90"
+loc_ODR_ConvNet_v1_IM_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/odr_conv1_im_jac/epoch_82_iou_0.91"
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_OD_ConvNet_v1_dilated,
+    parser.add_argument('--network', type=str, default=loc_ODR_ConvNet_v1_IM_J,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')

@@ -9,9 +9,6 @@ roslaunch azure_kinect_ros_driver multi_device_driver_top.launch
 #rviz
 rosrun rviz rviz -d src/pcl_utils/rviz/my_rviz.rviz 
 
-#cloud alignment
-rosrun pcl_utils cloud_alignment
-
 #2f-85
 sudo chmod 777 /dev/ttyUSB0
 
@@ -19,14 +16,21 @@ roslaunch robotiq_2f_gripper_control robotiq_2f_gripper_RtuNode.launch comport:=
 
 rosrun robotiq_2f_gripper_control Robotiq2FGripperSimpleController.py
 
+
 #pcl handle
 rosrun pcl_utils pcl_service
+
+#cloud alignment
+rosrun pcl_utils cloud_alignment
 
 #2d grasp predict
 rosrun dl_grasp run_realtime.py
 
 #3d grasp predict
 rosrun rl_grasp run_agent.py 
+
+#Convert 2d & 3d predict to robot baselink
+rosrun ur_move position_coverter.py
 
 #ur5 moveit! 
 rosrun ur_move ur_strategy.py 

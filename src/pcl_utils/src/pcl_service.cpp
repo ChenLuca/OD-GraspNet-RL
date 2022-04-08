@@ -214,7 +214,7 @@ float *grasp_3D = new float[3];
 float *Grab_Cloud_viewpoint_Translation = new float[3];
 float *Grab_Cloud_viewpoint_Rotation = new float[3];
 
-int NumberOfLocalPCD = 20;
+int NumberOfLocalPCD = 45;
 int nowLocalPCD = 0;
 float max_execution_time = 0;
 float z_passthrough = 0.8;
@@ -805,6 +805,8 @@ bool do_calculate_number_of_pointcloud(cv::Point2f dl_grasp_predict, float angle
       point_y = PwPs[i].point.y;
       point_z = PwPs[i].point.z;// + h_2 ;
 
+      // cout << "point_x " << point_x << ", point_y" << point_y << ", point_z" << point_z << endl;
+
       new_point [0] = point_x;
       new_point [1] = point_y;
       new_point [2] = point_z;
@@ -1288,7 +1290,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
       pubGraspPoint3D.publish(DL_Grasp_point);
 
-      cout << "grasp_3D[0] " << grasp_3D[0] << ", grasp_3D[1] " << grasp_3D[1] << ", grasp_3D[2] " << grasp_3D[2] << endl;
+      // cout << "grasp_3D[0] " << grasp_3D[0] << ", grasp_3D[1] " << grasp_3D[1] << ", grasp_3D[2] " << grasp_3D[2] << endl;
 
       float z_dist = 0.05;
       //rotate point Cloud
