@@ -340,7 +340,7 @@ bool do_PointcloudProcess()
   Eigen::Affine3f transform_top = Eigen::Affine3f::Identity();
 
   //Master flat
-  transform_master.translation() << -0.433232458522 * master_factor, -0.62237217783 * master_factor, -0.1124713287062 * master_factor;
+  transform_master.translation() << -0.423232458522 * master_factor, -0.63237217783 * master_factor, -0.1284713287062 * master_factor;
   
   transform_top.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
 
@@ -351,7 +351,9 @@ bool do_PointcloudProcess()
   cout << "Master_Filter_Cloud->size() " << Master_Filter_Cloud->size() << endl;
   cout << "Top_Filter_Cloud->size() " << Top_Filter_Cloud->size() << endl;
 
-  if((Master_Filter_Cloud->size()!= 0) && (Top_Filter_Cloud->size()!= 0))
+  // if((Master_Filter_Cloud->size()!= 0) && (Top_Filter_Cloud->size()!= 0))
+  if( (Top_Filter_Cloud->size()!= 0))
+
   {
 
       cout << "[cloud alignment] begin" << endl;

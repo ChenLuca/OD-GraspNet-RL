@@ -108,6 +108,8 @@ if __name__ == '__main__':
                     pred = net.predict(xc)
 
                     q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
+                    cv2.imwrite("q_gray_img_2.png", q_img*255)
+
 
                     gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
 

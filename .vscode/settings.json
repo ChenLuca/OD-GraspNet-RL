@@ -70,6 +70,8 @@
         "hash_set": "cpp",
         "bit": "cpp",
         "shared_mutex": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "codecvt": "cpp",
+        "future": "cpp"
     }
 }

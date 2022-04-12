@@ -6,5 +6,7 @@ float64 right_likelihood_msg
 float64 left_likelihood_msg
 float64 NormaldepthNonZeroValue_msg
 float64 normal_likelihood_msg
+float64 principal_curvatures_gaussian_msg
 int64 grab_point_num
 int64 finger_grab_point_num
+

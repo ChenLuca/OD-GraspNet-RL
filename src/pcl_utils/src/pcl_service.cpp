@@ -45,6 +45,7 @@
 #include <pcl/ModelCoefficients.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/features/principal_curvatures.h>
 
 #include "pcl_utils/snapshot.h"
 #include "pcl_utils/setPointCloud.h"
@@ -1061,6 +1062,51 @@ void do_Mapping_TopCam_Image()
     //=== Get projected rgb & depth image form pointcloud === [end]
   }
 }
+void do_principal_curvatures(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, float &avg_curvature, float &gaussian_curvature, float normal_radius=0.01, float principal_curvature_radius=0.1)
+{
+  //Compute the normals
+  pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimation;
+  normal_estimation.setInputCloud (input_cloud);
+
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr PrincipalCurvaturesTree (new pcl::search::KdTree<pcl::PointXYZRGB>);
+  normal_estimation.setSearchMethod (PrincipalCurvaturesTree);
+
+  pcl::PointCloud<pcl::Normal>::Ptr cloud_with_normals (new pcl::PointCloud<pcl::Normal>);
+
+  normal_estimation.setRadiusSearch (normal_radius);
+
+  normal_estimation.compute (*cloud_with_normals);
+
+  // Setup the principal curvatures computation
+  pcl::PrincipalCurvaturesEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::PrincipalCurvatures> principal_curvatures_estimation;
+
+  // Provide the original point cloud (without normals)
+  principal_curvatures_estimation.setInputCloud (input_cloud);
+
+  // Provide the point cloud with normals
+  principal_curvatures_estimation.setInputNormals (cloud_with_normals);
+
+  // Use the same KdTree from the normal estimation
+  principal_curvatures_estimation.setSearchMethod (PrincipalCurvaturesTree);
+  principal_curvatures_estimation.setRadiusSearch (principal_curvature_radius);
+
+  // Actually compute the principal curvatures
+  pcl::PointCloud<pcl::PrincipalCurvatures>::Ptr principal_curvatures (new pcl::PointCloud<pcl::PrincipalCurvatures> ());
+  principal_curvatures_estimation.compute (*principal_curvatures);
+
+  // std::cout << "principal_curvatures output points.size (): " << principal_curvatures->points.size () << std::endl;
+
+  float Avg_curvature = 0.0;
+  float Gaussian_curvature = 0.0;
+
+  for (int i = 0; i < principal_curvatures->size();i++)
+  {
+    Avg_curvature = (((*principal_curvatures)[i].pc1 + (*principal_curvatures)[i].pc2) / 2) + Avg_curvature;
+    Gaussian_curvature = (*principal_curvatures)[i].pc1 * (*principal_curvatures)[i].pc2 + Gaussian_curvature;
+  }
+  avg_curvature = Avg_curvature;
+  gaussian_curvature = Gaussian_curvature;
+}
 
 void do_Callback_TopCamPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {  
@@ -1069,8 +1115,6 @@ void do_Callback_TopCamPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_
 
   do_Mapping_TopCam_Image();
 }
-
-
 
 void do_Callback_AlignmentPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {  
@@ -1242,7 +1286,6 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
   
   pcl_utils::RL_Env_msg RL_Env;
 
-
   if(alignment_cloud->size()!=0)
   {
     //=== Get grab pointclout & count it's number === [begin]
@@ -1261,7 +1304,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
     float Grap_Point_Num, Finger_Grap_Point_Num;
 
 
-    do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, top_cloud_PwPs, fx, fy, cx, cy);
+    // do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, top_cloud_PwPs, fx, fy, cx, cy);
 
 
     do_PerspectiveProjection(alignment_cloud, NoUseMapping_RGB_Image, NoUseMapping_Depth_Image, viewpoint_translation, viewpoint_rotation, alignment_cloud_PwPs, fx, fy, cx, cy);
@@ -1345,6 +1388,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
       //Grab cloud normal
       if (grab_cloud->size()!= 0)
       {
+        // std::cout << "grab_cloud->size() " << grab_cloud->size() <<endl;
         pcl::PointCloud<pcl::PointNormal>::Ptr grab_cloud_normal (new pcl::PointCloud<pcl::PointNormal>);
         do_calculate_normal(grab_cloud, grab_cloud_normal);
         pcl_utils::coordinate_normal object_normal_grab;
@@ -1385,6 +1429,22 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
         normal_likelihood_msg.data = normal_likelihood;
         RL_Env.normal_likelihood_msg = normal_likelihood;
         pubNormalLikelihood.publish(normal_likelihood_msg);
+
+        //===principal_curvatures===
+         
+        float avg_curvature = 0.0;
+        float gaussian_curvature = 0.0;
+        
+        do_principal_curvatures(grab_cloud, avg_curvature, gaussian_curvature);
+        // std::cout << "avg_curvature " << avg_curvature << endl;
+        // std::cout << "gaussian_curvature " << gaussian_curvature << endl;
+
+        RL_Env.principal_curvatures_gaussian_msg = gaussian_curvature;
+        
+
+        // // Display and retrieve the shape context descriptor vector for the 0th point.
+        // pcl::PrincipalCurvatures descriptor = principal_curvatures->points[0];
+        // std::cout << descriptor << std::endl;
       }
       
       //left finger====================================================================
@@ -1437,6 +1497,16 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
         RL_Env.left_likelihood_msg = left_likelihood;
         pubLeftLikelihood.publish(left_likelihood_msg);
 
+        // //===principal_curvatures===
+        // float left_avg_curvature = 0.0;
+        // float left_gaussian_curvature = 0.0;
+        
+        // do_principal_curvatures(grab_cloud_left, left_avg_curvature, left_gaussian_curvature);
+        // std::cout << "===================================" << endl;
+        // std::cout << "left_avg_curvature " << left_avg_curvature << endl;
+        // std::cout << "left_gaussian_curvature " << left_gaussian_curvature << endl;
+        // std::cout << "===============" << endl;
+
       }
 
       //right finger====================================================================
@@ -1488,6 +1558,16 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
         right_likelihood_msg.data = right_likelihood;
         RL_Env.right_likelihood_msg = right_likelihood;
         pubRightLikelihood.publish(right_likelihood_msg);
+
+        // //===principal_curvatures===
+        // float right_avg_curvature = 0.0;
+        // float right_gaussian_curvature = 0.0;
+        
+        // do_principal_curvatures(grab_cloud_right, right_avg_curvature, right_gaussian_curvature);
+        // std::cout << "right_avg_curvature " << right_avg_curvature << endl;
+        // std::cout << "right_gaussian_curvature " << right_gaussian_curvature << endl;
+        // std::cout << "===================================" << endl;
+
       }
 
       std_msgs::Float64 approach_likelihood_msg;
@@ -1628,6 +1708,7 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
 
 bool do_get_RL_Env(pcl_utils::get_RL_Env::Request &req, pcl_utils::get_RL_Env::Response &res)
 {
+
   res.state = do_PointcloudProcess();
   // cout << "req" << req.call;
 
@@ -1804,11 +1885,9 @@ int main (int argc, char** argv)
 
   ros::ServiceServer RL_Env_service = nh.advertiseService("/get_RL_Env", do_get_RL_Env);
 
-
   ros::WallTime start_, end_;
 
   // ros::Rate loop_rate(100);
-
   // while(ros::ok())
   // {
   //   do_PointcloudProcess();

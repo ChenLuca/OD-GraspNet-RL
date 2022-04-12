@@ -135,7 +135,9 @@ class GraspEnv(py_environment.PyEnvironment):
         self.apporachLikelihood = 0
         self.NormalDepthNonZero =0
         self.OpenDepthNonZero =0
+        self.principal_curvatures_gaussian = 0
 
+        self.Maxprincipal_curvatures_gaussian = 0.0001
         self.MaxNormalDepthNonZero = 1
         self.MaxOpenDepthNonZero = 1
         self.Max_number_of_grab_pointClouds = 1
@@ -202,6 +204,13 @@ class GraspEnv(py_environment.PyEnvironment):
             self.pointLikelihoos_grab_cloud = res.state.normal_likelihood_msg
             self._number_of_grab_pointClouds = res.state.grab_point_num
             self._number_of_finger_grab_pointClouds = res.state.finger_grab_point_num
+            
+            if math.isnan(res.state.principal_curvatures_gaussian_msg):
+                self.principal_curvatures_gaussian = 0
+            else:
+                self.principal_curvatures_gaussian = res.state.principal_curvatures_gaussian_msg
+
+            # print("self.principal_curvatures_gaussian ", self.principal_curvatures_gaussian )
 
             # cv2.namedWindow('grab_approach_depth_image', cv2.WINDOW_NORMAL)
             # cv2.imshow('grab_approach_depth_image', self.grab_approach_depth_image)
@@ -374,13 +383,19 @@ class GraspEnv(py_environment.PyEnvironment):
         if self.NormalDepthNonZero >  self.MaxNormalDepthNonZero:
             self.MaxNormalDepthNonZero = self.NormalDepthNonZero
 
+
+        # if self.principal_curvatures_gaussian > self.Maxprincipal_curvatures_gaussian:
+        #     self.Maxprincipal_curvatures_gaussian = self.principal_curvatures_gaussian
+
         # if self.OpenDepthNonZero >  self.MaxOpenDepthNonZero:
         #     self.MaxOpenDepthNonZero = self.OpenDepthNonZero
 
         # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
         #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
         
-        self._reward = 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud #+ 1.0*(self.apporachLikelihood)
+        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + (self.principal_curvatures_gaussian)
+                            # + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger)
+                            # + 1.0*(self.apporachLikelihood)
                             # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
                             # - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
 
