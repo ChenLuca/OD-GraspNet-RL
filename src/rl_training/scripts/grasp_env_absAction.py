@@ -6,6 +6,7 @@ import os
 from tensorflow.python.ops.math_ops import truediv
 from yaml.loader import Loader
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
+from skimage.filters import gaussian
 import rospy
 import numpy as np
 import math
@@ -193,9 +194,9 @@ class GraspEnv(py_environment.PyEnvironment):
         rospy.wait_for_service('/get_RL_Env')
         try:
             res = self.handle_get_RL_Env(req)
-            self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
-            self.grab_open_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
-            self.grab_approach_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+            self.grab_normal_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            self.grab_open_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            self.grab_approach_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
 
             self.apporachLikelihood = res.state.approach_likelihood_msg
             self.pointLikelihood_right_finger = res.state.right_likelihood_msg
@@ -223,6 +224,13 @@ class GraspEnv(py_environment.PyEnvironment):
             # print("self.pointLikelihoos_grab_cloud ", self.pointLikelihoos_grab_cloud)
             # print("self._number_of_grab_pointClouds ", self._number_of_grab_pointClouds)
             # print("self._number_of_finger_grab_pointClouds ", self._number_of_finger_grab_pointClouds)
+
+
+
+            # cv2.namedWindow('self.grab_normal_depth_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('self.grab_normal_depth_image', self.grab_normal_depth_image)
+            # cv2.waitKey(1)
+            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
             
 
         except rospy.ServiceException as e:
@@ -292,10 +300,12 @@ class GraspEnv(py_environment.PyEnvironment):
     def grab_normal_depth_callback(self, image):
         try:
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis =-1)
-            # cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_normal_depth_image', self.grab_normal_depth_image)
+            grab_normal_depth_image_gaussian = gaussian(self.grab_normal_depth_image, 2.0, preserve_range=True)
+
+            # cv2.namedWindow('grab_normal_depth_image_gaussian', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_normal_depth_image_gaussian', grab_normal_depth_image_gaussian)
             # cv2.waitKey(1)
-            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
+            # print("grab_normal_depth_image_gaussian.shape ", grab_normal_depth_image_gaussian.shape)
         except CvBridgeError as e:
             print(e)
 

@@ -86,7 +86,23 @@ if __name__ == '__main__':
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", '20220306_DQN_policy_83.0_1.1929423')
+    # baseline DQN agent
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_baseline/20220306_DQN_policy_83.0_1.1929423')
+
+    # # principal_curvatures 
+    # # not stable
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_with_principal_curvatures_20220410/DQN_policy_42.0_76.079285')
+
+    # principal_curvatures
+    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_with_principal_curvatures_20220410/DQN_policy_301.0_59.550373')
+
+
+    # # principal_curvatures gaussian input
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_180.0_71.76671')
+
+    # # principal_curvatures gaussian input
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_200.0_56.337597')
+
 
     saved_policy = tf.saved_model.load(policy_dir)
 

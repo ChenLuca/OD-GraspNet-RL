@@ -6,13 +6,13 @@ import os
 from tensorflow.python.ops.math_ops import truediv
 from yaml.loader import Loader
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
+from skimage.filters import gaussian
 import rospy
 import numpy as np
 import math
 import pickle
 import random 
 import tensorflow as tf
-
 
 def solve_cudnn_error():
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -31,7 +31,6 @@ solve_cudnn_error()
 
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import Quaternion
 from rl_training.msg import AngleAxis_rotation_msg
 from rl_training.srv import loadPointCloud
 from rl_training.srv import get_RL_Env
@@ -137,7 +136,9 @@ class GraspEnv(py_environment.PyEnvironment):
         self.apporachLikelihood = 0
         self.NormalDepthNonZero =0
         self.OpenDepthNonZero =0
+        self.principal_curvatures_gaussian = 0
 
+        self.Maxprincipal_curvatures_gaussian = 0.0001
         self.MaxNormalDepthNonZero = 1
         self.MaxOpenDepthNonZero = 1
         self.Max_number_of_grab_pointClouds = 1
@@ -193,9 +194,9 @@ class GraspEnv(py_environment.PyEnvironment):
         rospy.wait_for_service('/get_RL_Env')
         try:
             res = self.handle_get_RL_Env(req)
-            self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
-            self.grab_open_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
-            self.grab_approach_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1)
+            self.grab_normal_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            self.grab_open_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            self.grab_approach_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
 
             self.apporachLikelihood = res.state.approach_likelihood_msg
             self.pointLikelihood_right_finger = res.state.right_likelihood_msg
@@ -204,6 +205,13 @@ class GraspEnv(py_environment.PyEnvironment):
             self.pointLikelihoos_grab_cloud = res.state.normal_likelihood_msg
             self._number_of_grab_pointClouds = res.state.grab_point_num
             self._number_of_finger_grab_pointClouds = res.state.finger_grab_point_num
+            
+            if math.isnan(res.state.principal_curvatures_gaussian_msg):
+                self.principal_curvatures_gaussian = 0
+            else:
+                self.principal_curvatures_gaussian = res.state.principal_curvatures_gaussian_msg
+
+            # print("self.principal_curvatures_gaussian ", self.principal_curvatures_gaussian )
 
             # cv2.namedWindow('grab_approach_depth_image', cv2.WINDOW_NORMAL)
             # cv2.imshow('grab_approach_depth_image', self.grab_approach_depth_image)
@@ -216,6 +224,13 @@ class GraspEnv(py_environment.PyEnvironment):
             # print("self.pointLikelihoos_grab_cloud ", self.pointLikelihoos_grab_cloud)
             # print("self._number_of_grab_pointClouds ", self._number_of_grab_pointClouds)
             # print("self._number_of_finger_grab_pointClouds ", self._number_of_finger_grab_pointClouds)
+
+
+
+            # cv2.namedWindow('self.grab_normal_depth_image', cv2.WINDOW_NORMAL)
+            # cv2.imshow('self.grab_normal_depth_image', self.grab_normal_depth_image)
+            # cv2.waitKey(1)
+            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
             
 
         except rospy.ServiceException as e:
@@ -285,10 +300,12 @@ class GraspEnv(py_environment.PyEnvironment):
     def grab_normal_depth_callback(self, image):
         try:
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis =-1)
-            # cv2.namedWindow('grab_normal_depth_image', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_normal_depth_image', self.grab_normal_depth_image)
+            grab_normal_depth_image_gaussian = gaussian(self.grab_normal_depth_image, 2.0, preserve_range=True)
+
+            # cv2.namedWindow('grab_normal_depth_image_gaussian', cv2.WINDOW_NORMAL)
+            # cv2.imshow('grab_normal_depth_image_gaussian', grab_normal_depth_image_gaussian)
             # cv2.waitKey(1)
-            # print("self.grab_normal_depth_image.shape ", self.grab_normal_depth_image.shape)
+            # print("grab_normal_depth_image_gaussian.shape ", grab_normal_depth_image_gaussian.shape)
         except CvBridgeError as e:
             print(e)
 
@@ -376,13 +393,19 @@ class GraspEnv(py_environment.PyEnvironment):
         if self.NormalDepthNonZero >  self.MaxNormalDepthNonZero:
             self.MaxNormalDepthNonZero = self.NormalDepthNonZero
 
+
+        # if self.principal_curvatures_gaussian > self.Maxprincipal_curvatures_gaussian:
+        #     self.Maxprincipal_curvatures_gaussian = self.principal_curvatures_gaussian
+
         # if self.OpenDepthNonZero >  self.MaxOpenDepthNonZero:
         #     self.MaxOpenDepthNonZero = self.OpenDepthNonZero
 
         # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
         #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
         
-        self._reward = 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud #+ 1.0*(self.apporachLikelihood)
+        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + (self.principal_curvatures_gaussian)
+                            # + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger)
+                            # + 1.0*(self.apporachLikelihood)
                             # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
                             # - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
 
@@ -425,3 +448,4 @@ class GraspEnv(py_environment.PyEnvironment):
                 return ts.transition(self._state, self._reward, discount=1.0)
         else:
             return ts.transition(self._state, self._reward, discount=1.0)
+

@@ -1138,9 +1138,9 @@ string SaveImage_Counter_Wrapper(int num, int object_number)
   return (Complement + to_string(num));
 }
 
-bool do_SaveImage(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
+bool do_SavePointCloud(pcl_utils::snapshot::Request &req, pcl_utils::snapshot::Response &res)
 {
-  string Save_Data_path = "/home/ur5/datasets/GraspPointDataset_new/";
+  string Save_Data_path = "/home/ur5/datasets/GraspPointDataset/saving/";
   string Name_pcd = "pcd";
   string Name_RGB_Image_root = "r.png";
   string Name_Depth_Image_root = "d.tiff";
@@ -1202,7 +1202,7 @@ bool do_setZPassthrough(pcl_utils::setZPassthrough::Request &req, pcl_utils::set
 
 bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
 {
-  string Load_File_path = "/home/ur5/datasets/GraspPointDataset_new/";
+  string Load_File_path = "/home/ur5/datasets/GraspPointDataset/training/";
   string Name_pcd = "pcd99";
   string Name_PCD_root = ".pcd";
   string PCD_File_Name;
@@ -1431,7 +1431,6 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
         pubNormalLikelihood.publish(normal_likelihood_msg);
 
         //===principal_curvatures===
-         
         float avg_curvature = 0.0;
         float gaussian_curvature = 0.0;
         
@@ -1875,7 +1874,7 @@ int main (int argc, char** argv)
 
 
   // Create ROS Service for taking picture
-  ros::ServiceServer saveImage_service = nh.advertiseService("/snapshot", do_SaveImage);
+  ros::ServiceServer saveImage_service = nh.advertiseService("/snapshot", do_SavePointCloud);
 
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
 

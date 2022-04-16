@@ -5,6 +5,8 @@ import cv2
 import numpy as np
 import math
 
+from skimage.feature import peak_local_max
+
 sys.path.insert(0, '/opt/installer/open_cv/cv_bridge/lib/python3/dist-packages/')
 
 from sensor_msgs.msg import Image
@@ -25,14 +27,19 @@ from utils.visualisation.plot import save_results, plot_results
 from utils.dataset_processing.grasp import detect_grasps
 from grcnn.msg import dl_grasp_result
 from grcnn.msg import AngleAxis_rotation_msg
-
+from pcl_utils.srv import snapshot
 logging.basicConfig(level=logging.INFO)
 
 rgb_bridge = CvBridge()
 depth_bridge = CvBridge()
 
+global_q_img = np.zeros((0,0,1), np.uint8)
+global_ang_img = np.zeros((0,0,1), np.uint8)
+
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
+
+save_q_img_counter = 0
 no_grasps = 1
 loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
 loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
@@ -73,19 +80,69 @@ def depth_callback(image):
     except CvBridgeError as e:
         print(e)
 
+def normalize_data(ori_data):
+
+    sum_data = sum(ori_data)
+    norm_data = ori_data/sum_data
+
+    return norm_data
+        
+def q_img_sample(q_img, ang_img):
+
+    global save_q_img_counter
+    
+    cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/pcd_q_img_{}.png".format(save_q_img_counter), q_img*255)
+    cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/pcd_ang_img_{}.png".format(save_q_img_counter), ang_img)
+
+    save_q_img_counter = save_q_img_counter + 1
+
+    # Step1: sample n local_max point
+    local_max = peak_local_max(q_img, min_distance=8, threshold_abs=0.2, num_peaks=10)
+
+    # Step2: get gray_scale value and normalized to 1
+    val_ori = []
+    for i in range(len(local_max)):
+        val = q_img[local_max[i][0],local_max[i][1]]
+        print(local_max[i][0],local_max[i][1], val)
+        val_ori.append(val)
+
+    val_normalized = normalize_data(val_ori)
+    print('val_normalized', val_normalized)
+
+    # Step3: sample again from n local_max point,
+    #        the quality(0-255) of image is the possibility to be sampled
+    point_idx = [i for i in range(len(local_max))]
+    print("point_idx", point_idx)
+    print("val_normalized ", val_normalized)
+    print("local_max ", local_max)
+    sampled_point_idx = np.random.choice(point_idx, 1, p=val_normalized)
+
+    # output: sampled pixel position
+    print("pixel coord: ", local_max[sampled_point_idx][0], "grasp quality: ", val_ori[sampled_point_idx[0]])
+
+def handle_get_q_image(req):
+    print("in service get_q_image, req:", req)
+    q_img_sample(global_q_img, ang_img)
+
+    return 99
+
 if __name__ == '__main__':
 
     args = parse_args()
 
-    pub_osa_result = rospy.Publisher('/dl_grasp/result', dl_grasp_result, queue_size=10)
-    rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
-    rospy.Subscriber("/projected_image/depth", Image, depth_callback)
-    pub_AngleAxisRotation = rospy.Publisher('/2D_Predict/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
-
-    cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
-
     rospy.init_node('grcnn_inference', anonymous=True)
 
+    pub_AngleAxisRotation = rospy.Publisher('/2D_Predict/AngleAxis_rotation', AngleAxis_rotation_msg, queue_size=10)
+
+    pub_osa_result = rospy.Publisher('/dl_grasp/result', dl_grasp_result, queue_size=10)
+
+    rospy.Subscriber("/projected_image/rgb", Image, rgb_callback)
+
+    rospy.Subscriber("/projected_image/depth", Image, depth_callback)
+
+    s = rospy.Service('get_q_image', snapshot, handle_get_q_image)
+
+    cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
 
     # Load Network
     logging.info('Loading model...')
@@ -108,8 +165,9 @@ if __name__ == '__main__':
                     pred = net.predict(xc)
 
                     q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
-                    cv2.imwrite("q_gray_img_2.png", q_img*255)
-
+                    
+                    global_q_img = q_img
+                    global_ang_img = ang_img
 
                     gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
 
@@ -130,7 +188,6 @@ if __name__ == '__main__':
                             rotation.y = 0
                             rotation.z = -1* g.angle 
                             pub_AngleAxisRotation.publish(rotation)
-
 
                     plot_results(fig=fig,
                                 rgb_img=cam_data.get_rgb(rgb, False),

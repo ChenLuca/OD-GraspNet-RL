@@ -376,6 +376,8 @@ bool do_PointcloudProcess()
       pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master);
       pcl::transformPointCloud(*Master_Rotate_Cloud, *Master_Rotate_Cloud, transform_top.inverse());
       *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Filter_Cloud;
+      // *Alignment_Cloud =  *Top_Filter_Cloud;
+
       
       do_remove_outerpoint(Alignment_Cloud, Alignment_Cloud);
       pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);
@@ -409,7 +411,7 @@ int main (int argc, char** argv)
   ros::Subscriber Master_PointCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/master/points2", 1, do_Callback_PointCloud_Master);
 
   // Create ROS subscriber for the sub input point cloud (azure kinect dk)
-  ros::Subscriber Sub_PointCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/sub/points2", 1, do_Callback_PointCloud_Sub);
+  // ros::Subscriber Sub_PointCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/sub/points2", 1, do_Callback_PointCloud_Sub);
 
   ros::Subscriber Top_PointCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/top/points2", 1, do_Callback_PointCloud_Top);
 
