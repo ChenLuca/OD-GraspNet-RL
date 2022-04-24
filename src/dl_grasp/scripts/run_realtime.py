@@ -39,7 +39,7 @@ global_ang_img = np.zeros((0,0,1), np.uint8)
 rgb_image = np.zeros((0,0,3), np.uint8)
 depth_image = np.zeros((0,0,1), np.uint8)
 
-save_q_img_counter = 0
+save_img_counter = 0
 no_grasps = 1
 loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
 loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
@@ -52,7 +52,7 @@ loc_ODR_ConvNet_v1_IM_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_ODR_ConvNet_v1_IM_J,
+    parser.add_argument('--network', type=str, default=loc_grcnn_J,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -80,21 +80,16 @@ def depth_callback(image):
     except CvBridgeError as e:
         print(e)
 
-def normalize_data(ori_data):
 
-    sum_data = sum(ori_data)
-    norm_data = ori_data/sum_data
-
-    return norm_data
         
 def q_img_sample(q_img, ang_img):
 
-    global save_q_img_counter
-    
-    cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/pcd_q_img_{}.png".format(save_q_img_counter), q_img*255)
-    cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/pcd_ang_img_{}.png".format(save_q_img_counter), ang_img)
+    def normalize_data(ori_data):
 
-    save_q_img_counter = save_q_img_counter + 1
+        sum_data = sum(ori_data)
+        norm_data = ori_data/sum_data
+
+        return norm_data
 
     # Step1: sample n local_max point
     local_max = peak_local_max(q_img, min_distance=8, threshold_abs=0.2, num_peaks=10)
@@ -120,8 +115,16 @@ def q_img_sample(q_img, ang_img):
     # output: sampled pixel position
     print("pixel coord: ", local_max[sampled_point_idx][0], "grasp quality: ", val_ori[sampled_point_idx[0]])
 
-def handle_get_q_image(req):
+def handle_get_q_ang_image(req):
+    
     print("in service get_q_image, req:", req)
+
+    global save_img_counter
+    cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/q_img_{}.png".format(save_img_counter), q_img*255)
+    # cv2.imwrite("/home/ur5/datasets/GraspPointDataset/saving/ang_img_{}.png".format(save_img_counter), ang_img)
+    np.save("/home/ur5/datasets/GraspPointDataset/saving/ang_img_{}".format(save_img_counter), ang_img)
+    save_img_counter = save_img_counter + 1
+
     q_img_sample(global_q_img, ang_img)
 
     return 99
@@ -140,7 +143,7 @@ if __name__ == '__main__':
 
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
 
-    s = rospy.Service('get_q_image', snapshot, handle_get_q_image)
+    s = rospy.Service('get_q_image', snapshot, handle_get_q_ang_image)
 
     cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
 

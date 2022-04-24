@@ -340,7 +340,7 @@ bool do_PointcloudProcess()
   Eigen::Affine3f transform_top = Eigen::Affine3f::Identity();
 
   //Master flat
-  transform_master.translation() << -0.423232458522 * master_factor, -0.63237217783 * master_factor, -0.1284713287062 * master_factor;
+  transform_master.translation() << -0.440232458522 * master_factor, -0.63237217783 * master_factor, -0.1284713287062 * master_factor;
   
   transform_top.translation() <<  0.0325388687398 * top_factor, -0.702043973051 * top_factor, 0.523023032612 * top_factor;
 
@@ -373,11 +373,10 @@ bool do_PointcloudProcess()
       //==================================================
 
       //solution 2 : master transform to top[begin]
-      pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master);
-      pcl::transformPointCloud(*Master_Rotate_Cloud, *Master_Rotate_Cloud, transform_top.inverse());
-      *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Filter_Cloud;
-      // *Alignment_Cloud =  *Top_Filter_Cloud;
-
+      // pcl::transformPointCloud(*Master_Filter_Cloud, *Master_Rotate_Cloud, transform_master);
+      // pcl::transformPointCloud(*Master_Rotate_Cloud, *Master_Rotate_Cloud, transform_top.inverse());
+      // *Alignment_Cloud = *Master_Rotate_Cloud + *Top_Filter_Cloud;
+      *Alignment_Cloud =  *Top_Filter_Cloud;
       
       do_remove_outerpoint(Alignment_Cloud, Alignment_Cloud);
       pcl::toROSMsg(*Alignment_Cloud, Alignment_Cloud_msg);

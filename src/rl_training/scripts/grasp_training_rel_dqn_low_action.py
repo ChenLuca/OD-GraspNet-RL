@@ -67,7 +67,7 @@ from tf_agents.utils import nest_utils
 
 from tf_agents.trajectories import time_step as ts
 
-from grasp_env_absAction import GraspEnv
+from grasp_env_relAction_low_actions import GraspEnv
 
 tf.compat.v1.enable_v2_behavior()
 

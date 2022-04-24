@@ -76,6 +76,7 @@ add_service_files(
   loadPointCloud.srv
   setZPassthrough.srv
   get_RL_Env.srv
+  sample_q_image.srv
 )
 
 ## Generate actions in the 'action' folder

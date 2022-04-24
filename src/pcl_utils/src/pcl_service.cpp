@@ -48,6 +48,7 @@
 #include <pcl/features/principal_curvatures.h>
 
 #include "pcl_utils/snapshot.h"
+#include "pcl_utils/sample_q_image.h"
 #include "pcl_utils/setPointCloud.h"
 #include "pcl_utils/loadPointCloud.h"
 #include "pcl_utils/setZPassthrough.h"
@@ -82,6 +83,8 @@ ros::Publisher pubRotatePointClouds, pubGrabPointClouds, pubNumGrabPoint, pubNum
                pubNowCloud,
                pubRL_Env,
                pubGraspPoint3D;
+
+ros::ServiceClient sample_q_image_client;
 
 //image publish
 image_transport::Publisher pubProjectDepthImage;
@@ -215,11 +218,10 @@ float *grasp_3D = new float[3];
 float *Grab_Cloud_viewpoint_Translation = new float[3];
 float *Grab_Cloud_viewpoint_Rotation = new float[3];
 
-int NumberOfLocalPCD = 45;
+int NumberOfLocalPCD = 50;
 int nowLocalPCD = 0;
 float max_execution_time = 0;
 float z_passthrough = 0.8;
-
 //==============================
 
 ////=========random=========
@@ -1261,6 +1263,66 @@ bool do_loadPointCloud(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadP
   return true;
 }
 
+bool do_loadPointCloud_with_sample(pcl_utils::loadPointCloud::Request &req, pcl_utils::loadPointCloud::Response &res)
+{
+  string Load_File_path = "/home/ur5/datasets/GraspPointDataset/training/";
+  string Name_pcd = "pcd99";
+  string Name_PCD_root = ".pcd";
+  string PCD_File_Name;
+  string Name_txt_root = ".txt";
+
+  string PCD_Num_string;
+
+  if (nowLocalPCD <10)
+  {
+    PCD_Num_string = "0" + to_string(nowLocalPCD);
+  }
+  else
+  {
+    PCD_Num_string = to_string(nowLocalPCD);
+  }
+
+  PCD_File_Name = Load_File_path + Name_pcd + PCD_Num_string + Name_PCD_root;
+
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGB> (PCD_File_Name, *alignment_cloud) == -1) //* load the file
+  {
+    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+    return false;
+  }
+
+  cout<<"Load Input PointCloud"<<endl;
+
+  pcl::toROSMsg(*alignment_cloud, now_cloud_output);
+  now_cloud_output.header.frame_id = "top_rgb_camera_link";
+  pubNowCloud.publish(now_cloud_output);
+  
+  float predict_x, predict_y, predict_theta; 
+  
+  pcl_utils::sample_q_image srv;
+  srv.request.call = nowLocalPCD;
+
+  if(sample_q_image_client.call(srv))
+  {
+    dl_grasp_input.x = srv.response.x;
+    dl_grasp_input.y = srv.response.y;
+    Angle_axis_rotation_approach = srv.response.rotation;
+  }
+  else
+  {
+    cout << "sample q_img fault!!!!!!!!!\n";
+  }
+
+  cout << "dl_grasp_input.x " << dl_grasp_input.x << ", dl_grasp_input.y " << dl_grasp_input.y << ", Angle_axis_rotation_approach " << Angle_axis_rotation_approach << "\n";
+
+  nowLocalPCD++;
+
+  if (nowLocalPCD == NumberOfLocalPCD)
+  {
+    nowLocalPCD = 0;
+  }
+  return true;
+}
+
 pcl_utils::RL_Env_msg do_PointcloudProcess()
 {
   ros::WallTime start_, end_;
@@ -1637,6 +1699,30 @@ pcl_utils::RL_Env_msg do_PointcloudProcess()
       cv::resize(Grab_Cloud_Approach_Depth_Image, Grab_Cloud_Approach_Depth_Image, cv_downsize, cv::INTER_AREA);
       cv::resize(Grab_Cloud_Open_Depth_Image, Grab_Cloud_Open_Depth_Image, cv_downsize, cv::INTER_AREA);
 
+      cv::Mat approach_mat_mean, approach_mat_stddev, normal_mat_mean, normal_mat_stddev;
+
+      cv::meanStdDev(Grab_Cloud_Approach_Depth_Image, approach_mat_mean, approach_mat_stddev);
+      cv::meanStdDev(Grab_Cloud_Normal_Depth_Image, normal_mat_mean, normal_mat_stddev);
+
+      double approach_m, approach_s, normal_m, normal_s;
+      approach_m = approach_mat_mean.at<double>(0, 0);
+      approach_s = approach_mat_stddev.at<double>(0, 0);
+      normal_m = normal_mat_mean.at<double>(0, 0);
+      normal_s = normal_mat_stddev.at<double>(0, 0);
+
+      // cout <<  "Grab_Cloud_Approach_Depth_Image mean " << approach_m << endl;
+
+      // cout <<  "Grab_Cloud_Approach_Depth_Image stddev " << approach_s << endl;
+
+      // cout <<  "Grab_Cloud_Normal_Depth_Image mean " << normal_m << endl;
+
+      // cout <<  "Grab_Cloud_Normal_Depth_Image stddev " << normal_s << endl;
+
+      RL_Env.approach_mean = approach_m;
+      RL_Env.approach_stddev = approach_s;
+      RL_Env.normal_mean = normal_m;
+      RL_Env.normal_stddev = normal_s;
+
       int NormaldepthNonZeroValue = cv::countNonZero(Grab_Cloud_Normal_Depth_Image);
       int OpendepthNonZeroValue = cv::countNonZero(Grab_Cloud_Open_Depth_Image);
 
@@ -1878,11 +1964,16 @@ int main (int argc, char** argv)
 
   ros::ServiceServer set_input_PointCloud_service = nh.advertiseService("/set_pointcloud", do_setPointCloud);
 
-  ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud);
+  // ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud);
+
+  ros::ServiceServer load_input_PointCloud_service = nh.advertiseService("/load_pointcloud", do_loadPointCloud_with_sample);
+
 
   ros::ServiceServer set_z_passthrough_service = nh.advertiseService("/set_z_passthrough", do_setZPassthrough);
 
   ros::ServiceServer RL_Env_service = nh.advertiseService("/get_RL_Env", do_get_RL_Env);
+
+  sample_q_image_client = nh.serviceClient<pcl_utils::sample_q_image>("/sample_q_image");
 
   ros::WallTime start_, end_;
 

@@ -9,4 +9,8 @@ float64 normal_likelihood_msg
 float64 principal_curvatures_gaussian_msg
 int64 grab_point_num
 int64 finger_grab_point_num
+float64 approach_mean
+float64 approach_stddev
+float64 normal_mean
+float64 normal_stddev
 

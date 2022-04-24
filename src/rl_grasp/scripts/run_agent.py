@@ -93,8 +93,8 @@ if __name__ == '__main__':
     # # not stable
     # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_with_principal_curvatures_20220410/DQN_policy_42.0_76.079285')
 
-    # principal_curvatures
-    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_with_principal_curvatures_20220410/DQN_policy_301.0_59.550373')
+    # # principal_curvatures
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_with_principal_curvatures_20220410/DQN_policy_301.0_59.550373')
 
 
     # # principal_curvatures gaussian input
@@ -103,6 +103,9 @@ if __name__ == '__main__':
     # # principal_curvatures gaussian input
     # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_200.0_56.337597')
 
+
+    # q-sample
+    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_q_sample_20220419/DQN_policy_1010.0_14.272098')
 
     saved_policy = tf.saved_model.load(policy_dir)
 

@@ -103,7 +103,7 @@ grab_open_rgb_bridge = CvBridge()
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self, input_image_size, phase):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=360, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=24, name="action")
 
         self.input_image_size = input_image_size
 
@@ -389,17 +389,17 @@ class GraspEnv(py_environment.PyEnvironment):
         # 1 degree
         # rotation_angle_l = math.pi/180
 
-        # 5 degree
-        rotation_angle_m = (math.pi*5)/180
+        # # 5 degree
+        # rotation_angle_m = (math.pi*5)/180
 
-        # 10 degree
-        # rotation_angle_b = (math.pi*10)/180    
-        #     
-        y_action = (action_value/19) - 9
-        x_action = (action_value%19) - 9
+        #30  degree
+        rotation_angle_b = (math.pi*30)/180    
+            
+        y_action = (action_value/5) - 2
+        x_action = (action_value%5) - 2
 
-        rotation.y = y_action*rotation_angle_m
-        rotation.x = x_action*rotation_angle_m
+        rotation.y = y_action*rotation_angle_b
+        rotation.x = x_action*rotation_angle_b
 
 
         self.pub_AngleAxisRotation.publish(rotation)

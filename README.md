@@ -38,3 +38,30 @@ rosrun ur_move ur_strategy.py
 # hand eye calibration
 roslaunch charuco_detector ur5_eye_to_hand.launch 
 
+
+
+
+#================== training RL Grasp==============================
+#just roscore
+roscore
+
+#rviz
+rosrun rviz rviz -d src/pcl_utils/rviz/my_rviz.rviz 
+
+#sample q image
+rosrun dl_grasp sample_q_image.py
+
+#pcl handle
+rosrun pcl_utils pcl_service
+
+#cloud alignment
+rosrun pcl_utils cloud_alignment
+
+#rl training
+rosrun rl_training grasp_training_dqn.py
+
+#====
+#if need, get rl training data
+rosrun pcl_utils get_cornell_data
+
+

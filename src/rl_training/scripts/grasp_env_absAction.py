@@ -194,9 +194,35 @@ class GraspEnv(py_environment.PyEnvironment):
         rospy.wait_for_service('/get_RL_Env')
         try:
             res = self.handle_get_RL_Env(req)
-            self.grab_normal_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
-            self.grab_open_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
-            self.grab_approach_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            # print("res.state.grab_normal_depth_msg.height ", res.state.grab_normal_depth_msg.height)
+            # print("res.state.grab_normal_depth_msg.width ", res.state.grab_normal_depth_msg.width)
+            # print("res.state.grab_open_depth_msg.height ", res.state.grab_open_depth_msg.height)
+            # print("res.state.grab_open_depth_msg.width ", res.state.grab_open_depth_msg.width)
+            # print("res.state.grab_approach_depth_msg.height ", res.state.grab_approach_depth_msg.height)
+            # print("res.state.grab_approach_depth_msg.width ", res.state.grab_approach_depth_msg.width)
+            
+            if (res.state.grab_normal_depth_msg.height == 0 or res.state.grab_normal_depth_msg.width ==0):
+                self.grab_normal_depth_image = np.zeros((120,160,1), np.float32)
+                # print("self.grab_normal_depth_image is 0 !!")
+            else:
+                self.grab_normal_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_normal_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+
+
+            if (res.state.grab_open_depth_msg.height == 0 or res.state.grab_open_depth_msg.width == 0):
+                self.grab_open_depth_image =np.zeros((120,160,1), np.float32)
+                # print("self.grab_open_depth_image is 0 !!")
+
+            else:
+                self.grab_open_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_open_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+
+
+            if (res.state.grab_approach_depth_msg.height == 0 or res.state.grab_approach_depth_msg.width == 0):
+                self.grab_approach_depth_image = np.zeros((120,160,1), np.float32)
+                # print("self.grab_approach_depth_image is 0 !!")
+
+            else:
+                self.grab_approach_depth_image = gaussian(np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(res.state.grab_approach_depth_msg, "mono8").astype(np.float32)/255, axis =-1), 2.0, preserve_range=True)
+            # print("image good!")
 
             self.apporachLikelihood = res.state.approach_likelihood_msg
             self.pointLikelihood_right_finger = res.state.right_likelihood_msg
@@ -403,11 +429,10 @@ class GraspEnv(py_environment.PyEnvironment):
         # if self._number_of_grab_pointClouds > self.Max_number_of_grab_pointClouds:
         #     self.Max_number_of_grab_pointClouds = self._number_of_grab_pointClouds
         
-        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + (self.principal_curvatures_gaussian)
-                            # + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger)
-                            # + 1.0*(self.apporachLikelihood)
+        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihoos_grab_cloud + (self.principal_curvatures_gaussian)+ 1.0*(self.apporachLikelihood) + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger)+ 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
+                            
                             # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds)
-                            # - self._step_counter  + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero)
+                            # - self._step_counter  
 
     def _step(self, action):
 
