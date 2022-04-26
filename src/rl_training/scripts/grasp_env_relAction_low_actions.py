@@ -103,11 +103,11 @@ grab_open_rgb_bridge = CvBridge()
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self, input_image_size, phase):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=11, name="action")
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=4, name="action")
 
         self.input_image_size = input_image_size
 
-        self.input_channel = 3
+        self.input_channel = 2
 
         self.phase = phase
 
@@ -149,6 +149,7 @@ class GraspEnv(py_environment.PyEnvironment):
         self.Maxapproach_mean = 20
         self.Maxapproach_stddev = 40
 
+        self.action_stop = False
         self.rotate_x = 0 
         self.rotate_y = 0 
         self.rotate_z = 0 
@@ -254,11 +255,6 @@ class GraspEnv(py_environment.PyEnvironment):
         try:
             self.grab_normal_depth_image = np.expand_dims(grab_normal_depth_bridge.imgmsg_to_cv2(image, "mono8").astype(np.float32)/255, axis =-1)
             grab_normal_depth_image_gaussian = gaussian(self.grab_normal_depth_image, 2.0, preserve_range=True)
-
-            # cv2.namedWindow('grab_normal_depth_image_gaussian', cv2.WINDOW_NORMAL)
-            # cv2.imshow('grab_normal_depth_image_gaussian', grab_normal_depth_image_gaussian)
-            # cv2.waitKey(1)
-            # print("grab_normal_depth_image_gaussian.shape ", grab_normal_depth_image_gaussian.shape)
         except CvBridgeError as e:
             print(e)
 
@@ -324,58 +320,85 @@ class GraspEnv(py_environment.PyEnvironment):
         rotation_angle_m = (math.pi*5)/180
 
         # 20  degree
-        rotation_angle_l = (math.pi*20)/180    
+        rotation_angle_l = (math.pi*20)/180 
+
+        # 10 degree
+        rotation_angle_10 = (math.pi*10)/180 
+
 
         if action_value == 0:
-            self.rotate_x = self.rotate_x + rotation_angle_s
+            self.rotate_x = self.rotate_x + rotation_angle_10
             print("action_value 0")
 
         elif action_value == 1:
-            self.rotate_x = self.rotate_x + rotation_angle_m
+            self.rotate_x = self.rotate_x - rotation_angle_10
             print("action_value 1")
 
         elif action_value == 2:
-            self.rotate_x = self.rotate_x + rotation_angle_l
+            self.rotate_y = self.rotate_y + rotation_angle_10
             print("action_value 2")
 
         elif action_value == 3:
-            self.rotate_x = self.rotate_x - rotation_angle_s
+            self.rotate_y = self.rotate_y - rotation_angle_10
             print("action_value 3")
 
         elif action_value == 4:
-            self.rotate_x = self.rotate_x - rotation_angle_m
-            print("action_value 4")
-
-        elif action_value == 5:
-            self.rotate_x = self.rotate_x - rotation_angle_l
-            print("action_value 5")
-
-        elif action_value == 6:
-            self.rotate_y = self.rotate_y + rotation_angle_s
-            print("action_value 6")
-
-        elif action_value == 7:
-            self.rotate_y = self.rotate_y + rotation_angle_m
-            print("action_value 7")
-
-        elif action_value == 8:
-            self.rotate_y = self.rotate_y + rotation_angle_l
-            print("action_value 8")
-
-        elif action_value == 9:
-            self.rotate_y = self.rotate_y - rotation_angle_s
-            print("action_value 9")
-
-        elif action_value == 10:
-            self.rotate_y = self.rotate_y - rotation_angle_m
-            print("action_value 10")
-
-        elif action_value == 11:
-            self.rotate_y = self.rotate_y - rotation_angle_l
-            print("action_value 11")
+            self.action_stop = True
+            print("action_value 4, stop")
 
         else:
-            print("action > 11 , something wrong!!")
+            print("action > 4 , something wrong!!")   
+
+        # if action_value == 0:
+        #     self.rotate_x = self.rotate_x + rotation_angle_s
+        #     print("action_value 0")
+
+        # elif action_value == 1:
+        #     self.rotate_x = self.rotate_x + rotation_angle_m
+        #     print("action_value 1")
+
+        # elif action_value == 2:
+        #     self.rotate_x = self.rotate_x + rotation_angle_l
+        #     print("action_value 2")
+
+        # elif action_value == 3:
+        #     self.rotate_x = self.rotate_x - rotation_angle_s
+        #     print("action_value 3")
+
+        # elif action_value == 4:
+        #     self.rotate_x = self.rotate_x - rotation_angle_m
+        #     print("action_value 4")
+
+        # elif action_value == 5:
+        #     self.rotate_x = self.rotate_x - rotation_angle_l
+        #     print("action_value 5")
+
+        # elif action_value == 6:
+        #     self.rotate_y = self.rotate_y + rotation_angle_s
+        #     print("action_value 6")
+
+        # elif action_value == 7:
+        #     self.rotate_y = self.rotate_y + rotation_angle_m
+        #     print("action_value 7")
+
+        # elif action_value == 8:
+        #     self.rotate_y = self.rotate_y + rotation_angle_l
+        #     print("action_value 8")
+
+        # elif action_value == 9:
+        #     self.rotate_y = self.rotate_y - rotation_angle_s
+        #     print("action_value 9")
+
+        # elif action_value == 10:
+        #     self.rotate_y = self.rotate_y - rotation_angle_m
+        #     print("action_value 10")
+
+        # elif action_value == 11:
+        #     self.rotate_y = self.rotate_y - rotation_angle_l
+        #     print("action_value 11")
+
+        # else:
+        #     print("action > 11 , something wrong!!")
 
         rotation.x = self.rotate_x
         rotation.y = self.rotate_y
@@ -388,7 +411,9 @@ class GraspEnv(py_environment.PyEnvironment):
         self.get_RL_Env_data(1)
         # print("--- %s seconds ---" % (time.time() - start_time))
 
-        self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        # self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image, self.grab_open_depth_image), axis=-1)
+        self._state["depth_grab"] = np.concatenate((self.grab_normal_depth_image, self.grab_approach_depth_image), axis=-1)
+
         # self._state["depth_grab"] = self.grab_normal_depth_image
 
         self._update_reward()
@@ -412,9 +437,14 @@ class GraspEnv(py_environment.PyEnvironment):
         if self.approach_stddev > self.Maxapproach_stddev:
             self.Maxapproach_stddev = self.approach_stddev
 
-        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) + self.pointLikelihood_grab_cloud + (self.principal_curvatures_gaussian) \
-                        + 1.0*(self.apporachLikelihood) + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) \
-                        + (self.approach_mean/self.Maxapproach_mean) + (self.approach_stddev/self.Maxapproach_stddev) - (self._step_counter)*0.1 
+        self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) \
+                        + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) \
+                        + (self.approach_mean/self.Maxapproach_mean) \
+                        + (self.approach_stddev/self.Maxapproach_stddev) \
+                        - (self._step_counter)*0.1
+                        # + self.pointLikelihood_grab_cloud
+                        # + 1.0*(self.apporachLikelihood)
+                        # + (self.principal_curvatures_gaussian) 
                         # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds) 
                         # + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero) 
 
@@ -445,6 +475,13 @@ class GraspEnv(py_environment.PyEnvironment):
             self._step_counter = 0
             print("out of angle!")
             return ts.termination(self._state, -30)
+
+        if self.action_stop:
+            self.action_stop = False
+            self._episode_ended = True
+            self._step_counter = 0
+            print("action stop!")
+            return ts.termination(self._state, 0.1)
 
         if self.phase == "training":
             if self._step_counter > self._step_lengh:
