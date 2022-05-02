@@ -994,7 +994,7 @@ void do_Mapping_Image()
     do_PerspectiveProjection(filter_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, filter_cloud_PwPs, fx, fy, cx, cy);
 
     //do dilate for sparse image result
-    cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
+    cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(6, 6));  
     cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
     cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
 
@@ -1048,7 +1048,7 @@ void do_Mapping_TopCam_Image()
     do_PerspectiveProjection(top_cloud, Mapping_RGB_Image, Mapping_Depth_Image, viewpoint_translation, viewpoint_rotation, TopCam_cloud_PwPs, fx, fy, cx, cy);
 
     //do dilate for sparse image result
-    cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4));  
+    cv::Mat element = getStructuringElement(cv::MORPH_RECT, cv::Size(6, 6));  
     cv::dilate(Mapping_RGB_Image, Mapping_RGB_Image, element);
     cv::dilate(Mapping_Depth_Image, Mapping_Depth_Image, element);
 

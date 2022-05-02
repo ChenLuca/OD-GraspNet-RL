@@ -26,10 +26,6 @@ def get_network(network_name):
         from .OD_ConvNet_1 import Generative_OD_1
         return Generative_OD_1
 
-    #OSA-Dense Grasp ConvNet
-    elif network_name == 'od_convnet_1_dilated':
-        from .OD_ConvNet_1_dilated import GenerativeOD_dilated
-        return GenerativeOD_dilated
 
     elif network_name == 'od_2':
         from .OD_ConvNet_2 import Generative_OD_2
@@ -128,14 +124,6 @@ def get_network(network_name):
     elif network_name == 'odc_1_bypass_v2':
         from .ODC_ConvNet_1_Bypass_V2 import Generative_ODC_1_Bypass_V2
         return Generative_ODC_1_Bypass_V2
-
-    elif network_name == 'odc_1_bypass_v2_osa_depth_3':
-        from .ODC_ConvNet_1_Bypass_V2_OSA_Depth_3 import Generative_ODC_1_Bypass_V2_OSA_Depth_3
-        return Generative_ODC_1_Bypass_V2_OSA_Depth_3
-    
-    elif network_name == 'odc_1_bypass_v2_osa_depth_2':
-        from .ODC_ConvNet_1_Bypass_V2_OSA_Depth_2 import Generative_ODC_1_Bypass_V2_OSA_Depth_2
-        return Generative_ODC_1_Bypass_V2_OSA_Depth_2
 
     elif network_name == 'odc2_1_bypass_v2':
         from .ODC2_ConvNet_1_Bypass_V2 import Generative_ODC2_1_Bypass_V2
@@ -269,15 +257,6 @@ def get_network(network_name):
         from .ODRC_ConvNet_3_CSP_OSA_Depth_10_Bypass_V2 import Generative_ODRC_3_CSP_OSA_Depth_10_Bypass_V2
         return Generative_ODRC_3_CSP_OSA_Depth_10_Bypass_V2
     #=====================================================
-        # not that strange !!
-    elif network_name == 'real_strange':
-        from .osadense_grconvnet import GenerativeOSA_Strange
-        return GenerativeOSA_Strange
-    
-    # not that strange !!
-    elif network_name == 'strange':
-        from .osadense_graspnet import GenerativeOSADense
-        return GenerativeOSADense
 
     else:
         raise NotImplementedError('Network {} is not implemented'.format(network_name))

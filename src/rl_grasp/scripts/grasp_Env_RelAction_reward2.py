@@ -103,15 +103,21 @@ grab_open_rgb_bridge = CvBridge()
 class GraspEnv(py_environment.PyEnvironment):
 
     def __init__(self, input_image_size, phase):
-        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=4, name="action")
+        
+        # must be odd number
+        self.num_actions = 49
 
         self.input_image_size = input_image_size
 
         self.input_channel = 2
 
+        self._step_lengh = 1
+
+        print("!!!!!!!!!!!!!!!!!!!!self._step_lengh: ", self._step_lengh)
+
         self.phase = phase
 
-        self._step_lengh = 15
+        self._action_spec = array_spec.BoundedArraySpec(shape=(), dtype=np.int32, minimum=0, maximum=(self.num_actions - 1), name="action")
 
         self._observation_spec = {"depth_grab" : array_spec.BoundedArraySpec((self.input_image_size[0], self.input_image_size[1], self.input_channel), dtype = np.float32, minimum=0, maximum=255)}
 
@@ -191,12 +197,6 @@ class GraspEnv(py_environment.PyEnvironment):
             self.approach_stddev = res.state.approach_stddev
             self.normal_mean = res.state.normal_mean
             self.normal_stddev = res.state.normal_stddev
-
-            # print("self.approach_mean ", self.approach_mean)
-            # print("self.approach_stddev ", self.approach_stddev)
-            # print("self.normal_mean ", self.normal_mean)
-            # print("self.normal_stddev ", self.normal_stddev)
-            # print("self.NormalDepthNonZero ", self.NormalDepthNonZero)
 
             if math.isnan(res.state.principal_curvatures_gaussian_msg):
                 self.principal_curvatures_gaussian = 0
@@ -283,12 +283,6 @@ class GraspEnv(py_environment.PyEnvironment):
         self._reward = 0 
         self._episode_ended = False
 
-        initial_angle = (math.pi*60)/180
-
-        # self.rotate_x = initial_angle * (random.random() - 0.5)
-        # self.rotate_y = initial_angle * (random.random() - 0.5)
-        # self.rotate_z = initial_angle * (random.random() - 0.5)
-
         rotation = AngleAxis_rotation_msg()
 
         self.rotate_x = 0
@@ -305,7 +299,17 @@ class GraspEnv(py_environment.PyEnvironment):
         self._update_ROS_data()
         # print("reset!")
         return ts.restart(self._state)
-    
+
+    def _set_action(self, num_actions, inpt_action):
+        inpt_action = inpt_action
+        
+        num_actions_sqrt = int(math.sqrt(num_actions))
+
+        x = int(inpt_action/num_actions_sqrt) - math.floor(num_actions_sqrt/2)
+        y = int(inpt_action%num_actions_sqrt) - math.floor(num_actions_sqrt/2)
+
+        return x , y
+
     def _rotate_grasp(self, action_value):
         
         rotation = AngleAxis_rotation_msg()
@@ -325,80 +329,13 @@ class GraspEnv(py_environment.PyEnvironment):
         # 10 degree
         rotation_angle_10 = (math.pi*10)/180 
 
+        # 15 degree
+        rotation_angle_15 = (math.pi*10)/180 
 
-        if action_value == 0:
-            self.rotate_x = self.rotate_x + rotation_angle_10
-            print("action_value 0")
+        rotation_angle_x, rotation_angle_y = self._set_action(self.num_actions, action_value)
 
-        elif action_value == 1:
-            self.rotate_x = self.rotate_x - rotation_angle_10
-            print("action_value 1")
-
-        elif action_value == 2:
-            self.rotate_y = self.rotate_y + rotation_angle_10
-            print("action_value 2")
-
-        elif action_value == 3:
-            self.rotate_y = self.rotate_y - rotation_angle_10
-            print("action_value 3")
-
-        elif action_value == 4:
-            self.action_stop = True
-            print("action_value 4, stop")
-
-        else:
-            print("action > 4 , something wrong!!")   
-
-        # if action_value == 0:
-        #     self.rotate_x = self.rotate_x + rotation_angle_s
-        #     print("action_value 0")
-
-        # elif action_value == 1:
-        #     self.rotate_x = self.rotate_x + rotation_angle_m
-        #     print("action_value 1")
-
-        # elif action_value == 2:
-        #     self.rotate_x = self.rotate_x + rotation_angle_l
-        #     print("action_value 2")
-
-        # elif action_value == 3:
-        #     self.rotate_x = self.rotate_x - rotation_angle_s
-        #     print("action_value 3")
-
-        # elif action_value == 4:
-        #     self.rotate_x = self.rotate_x - rotation_angle_m
-        #     print("action_value 4")
-
-        # elif action_value == 5:
-        #     self.rotate_x = self.rotate_x - rotation_angle_l
-        #     print("action_value 5")
-
-        # elif action_value == 6:
-        #     self.rotate_y = self.rotate_y + rotation_angle_s
-        #     print("action_value 6")
-
-        # elif action_value == 7:
-        #     self.rotate_y = self.rotate_y + rotation_angle_m
-        #     print("action_value 7")
-
-        # elif action_value == 8:
-        #     self.rotate_y = self.rotate_y + rotation_angle_l
-        #     print("action_value 8")
-
-        # elif action_value == 9:
-        #     self.rotate_y = self.rotate_y - rotation_angle_s
-        #     print("action_value 9")
-
-        # elif action_value == 10:
-        #     self.rotate_y = self.rotate_y - rotation_angle_m
-        #     print("action_value 10")
-
-        # elif action_value == 11:
-        #     self.rotate_y = self.rotate_y - rotation_angle_l
-        #     print("action_value 11")
-
-        # else:
-        #     print("action > 11 , something wrong!!")
+        self.rotate_x = self.rotate_x + (rotation_angle_x * rotation_angle_15)
+        self.rotate_y = self.rotate_y + (rotation_angle_y * rotation_angle_15)
 
         rotation.x = self.rotate_x
         rotation.y = self.rotate_y
@@ -438,12 +375,14 @@ class GraspEnv(py_environment.PyEnvironment):
             self.Maxapproach_stddev = self.approach_stddev
 
         self._reward =  - 1.0*(self.NormalDepthNonZero/self.MaxNormalDepthNonZero) \
-                        + 0.5*(self.pointLikelihood_right_finger + self.pointLikelihood_left_finger) \
+                        + (self.pointLikelihood_right_finger) \
                         + (self.approach_mean/self.Maxapproach_mean) \
                         + (self.approach_stddev/self.Maxapproach_stddev) \
-                        - (self._step_counter)*0.1
-                        # + self.pointLikelihood_grab_cloud
-                        # + 1.0*(self.apporachLikelihood)
+                        - (self._step_counter)*0.1 \
+                        + 1.0*(self.apporachLikelihood) \
+                        + self.pointLikelihood_grab_cloud
+
+                        # + self.pointLikelihood_left_finger)
                         # + (self.principal_curvatures_gaussian) 
                         # + 1.0*(self._number_of_grab_pointClouds/self.Max_number_of_grab_pointClouds) 
                         # + 1.0*(self.OpenDepthNonZero/self.MaxOpenDepthNonZero) 

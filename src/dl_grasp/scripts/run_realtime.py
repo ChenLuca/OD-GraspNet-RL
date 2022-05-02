@@ -41,22 +41,38 @@ depth_image = np.zeros((0,0,1), np.uint8)
 
 save_img_counter = 0
 no_grasps = 1
-loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
-loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
-loc_ODR_ConvNet_v4 = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_0713_ODR_ConvNet_3_VoV/epoch_16_iou_0.92'
+# loc_old_trained_custom_data = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/20210921/epoch_33_iou_0.65'
+# loc_grcnn = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/my_model/default/epoch_19_iou_0.98'
+# loc_ODR_ConvNet_v4 = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_0713_ODR_ConvNet_3_VoV/epoch_16_iou_0.92'
 loc_OD_ConvNet_v1_dilated = '/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211123_1729_OD_ConvNet_1_dilated/epoch_19_iou_0.92'
-loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
+# loc_OD_ConvNet_3_csp = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/211127_1303_OD_ConvNet_3_csp/epoch_10_iou_0.97"
 
-loc_grcnn_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/grcnn_jac/epoch_39_iou_0.90"
-loc_ODR_ConvNet_v1_IM_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/odr_conv1_im_jac/epoch_82_iou_0.91"
+# loc_grcnn_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/grcnn_jac/epoch_39_iou_0.90"
+# loc_ODR_ConvNet_v1_IM_J = "/home/ur5/code/RL-Grasp-with-GRCNN/src/grcnn/scripts/trained-models/odr_conv1_im_jac/epoch_82_iou_0.91"
+loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_29_iou_0.94"
+
+loc_grcnn_cornell = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/grcnn_epoch_19_iou_0.98_cornell"
+loc_grcnn_DepthOnly_cornell = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/220501_0156_grcnn_DepthOnly_cornell/epoch_34_iou_0.87"
+loc_grcnn_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/grcnn_epoch_39_iou_0.90_jacquard"
+
+loc_od_1_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/od_1_jacquard/epoch_49_iou_0.89"
+loc_odc_1_csp_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/220421_1455_odc_1_csp/epoch_49_iou_0.89"
+loc_odc_3_csp_osa_depth_5_bypass_v2_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/220425_1455_odc_3_csp_osa_depth_5_bypass_v2/epoch_44_iou_0.90"
+loc_odc_3_csp_osa_depth_10_bypass_v2_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/220425_0711_odc_3_csp_osa_depth_10_bypass_v2/epoch_32_iou_0.91"
+
+loc_odc_1_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/odc_1_epoch_30_iou_0.90"
+loc_odc_1_bypass_v2_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/odc_1_bypass_v2_epoch_21_iou_0.91"
+loc_odc_1_bypass_v2_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/odc_1_bypass_v2_epoch_42_iou_0.88"
+
+loc_odc2_1_bypass_v2_jacquard = "/home/ur5/code/RL-Grasp-with-GRCNN/src/dl_grasp/scripts/trained-models/odc2_1_bypass_v2_epoch_25_iou_0.89"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_grcnn_J,
+    parser.add_argument('--network', type=str, default=loc_grcnn_DepthOnly_cornell,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
-    parser.add_argument('--use-rgb', type=int, default=1,
+    parser.add_argument('--use-rgb', type=int, default=0,
                         help='Use RGB image for evaluation (1/0)')
     parser.add_argument('--n-grasps', type=int, default=1,
                         help='Number of grasps to consider per image')
@@ -143,6 +159,10 @@ if __name__ == '__main__':
 
     rospy.Subscriber("/projected_image/depth", Image, depth_callback)
 
+    # rospy.Subscriber("/top/rgb/image_raw", Image, rgb_callback)
+
+    # rospy.Subscriber("/top/depth/image_raw", Image, depth_callback)
+
     s = rospy.Service('get_q_image', snapshot, handle_get_q_ang_image)
 
     cam_data = CameraData(include_depth=args.use_depth, include_rgb=args.use_rgb)
@@ -161,7 +181,9 @@ if __name__ == '__main__':
             while True:
                 rgb = rgb_image
                 depth = np.expand_dims(depth_image, axis=2)
+                # x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
                 x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
+
 
                 with torch.no_grad():
                     xc = x.to(device)

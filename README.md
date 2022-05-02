@@ -38,9 +38,6 @@ rosrun ur_move ur_strategy.py
 # hand eye calibration
 roslaunch charuco_detector ur5_eye_to_hand.launch 
 
-
-
-
 #================== training RL Grasp==============================
 #just roscore
 roscore

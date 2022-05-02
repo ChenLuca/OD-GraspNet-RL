@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from inference.models.RJ_grasp_model import GraspModel, OSAModule, OSABlock, TransitionBlock
 from inference.models.rfb import BasicRFB_a
 
-class Generative_ODR_1_IM(GraspModel):
+class Generative_ODR_3_IM(GraspModel):
 
     def __init__(self, input_channels=4, output_channels=1, channel_size=32, dropout=False, prob=0.0):
-        super(Generative_ODR_1_IM, self).__init__()
+        super(Generative_ODR_3_IM, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, channel_size, kernel_size=9, stride=1, padding=4)
         self.bn1 = nn.BatchNorm2d(channel_size)
 
@@ -31,18 +31,12 @@ class Generative_ODR_1_IM(GraspModel):
         # 2nd block
         self.block2 = OSABlock(self.osa_depth, self.trans_conv_kernal[0], self.osa_conv_kernal[1], OSAModule, self.osa_drop_rate)
         self.trans2 = TransitionBlock(self.osa_conv_kernal[1]*self.osa_depth, self.trans_conv_kernal[1], dropRate=self.osa_drop_rate)
-        # 3rd block
-        self.block3 = OSABlock(self.osa_depth, self.trans_conv_kernal[1], self.osa_conv_kernal[2], OSAModule, self.osa_drop_rate)
-        self.trans3 = TransitionBlock(self.osa_conv_kernal[2]*self.osa_depth, self.trans_conv_kernal[2], dropRate=self.osa_drop_rate)
-        # 4rd block
-        self.block4 = OSABlock(self.osa_depth, self.trans_conv_kernal[2], self.osa_conv_kernal[3], OSAModule, self.osa_drop_rate)
-        self.trans4 = TransitionBlock(self.osa_conv_kernal[3]*self.osa_depth, self.trans_conv_kernal[3], dropRate=self.osa_drop_rate)
 
-        self.trans_bn = nn.BatchNorm2d(self.trans_conv_kernal[3])
+        self.trans_bn = nn.BatchNorm2d(self.trans_conv_kernal[1])
 
-        self.rfb = BasicRFB_a(self.trans_conv_kernal[3], self.trans_conv_kernal[3])
+        self.rfb = BasicRFB_a(self.trans_conv_kernal[1], self.trans_conv_kernal[1])
 
-        self.trans_out_shape = self.trans4.state_dict()['conv1.weight'].shape[0]
+        self.trans_out_shape = self.trans2.state_dict()['conv1.weight'].shape[0]
 
         self.conv4 = nn.ConvTranspose2d(self.trans_out_shape, channel_size * 2, kernel_size=4, stride=2, padding=1,
                                         output_padding=1)
@@ -80,10 +74,6 @@ class Generative_ODR_1_IM(GraspModel):
         x = x + tx_1
         tx_2 = self.trans2(self.block2(x))
         x = x + tx_2
-        tx_3 = self.trans3(self.block3(x))
-        x = x + tx_3
-        tx_4 = self.trans4(self.block4(x))
-        x = x + tx_4
 
         x = self.rfb(x)
 

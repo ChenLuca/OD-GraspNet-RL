@@ -1,13 +1,14 @@
 import torch.nn as nn
 import torch.nn.functional as F
-
+import torch
 from inference.models.RJ_grasp_model import GraspModel, OSAModule, OSABlock, TransitionBlock
-from inference.models.rfb import BasicRFB_a
 
-class Generative_ODR_1_IM(GraspModel):
+class Generative_OD_1_CSP_Fusion_First(GraspModel):
 
-    def __init__(self, input_channels=4, output_channels=1, channel_size=32, dropout=False, prob=0.0):
-        super(Generative_ODR_1_IM, self).__init__()
+    def __init__(self, input_channels=4, output_channels=1, channel_size=256, dropout=False, prob=0.0):
+        super(Generative_OD_1_CSP_Fusion_First, self).__init__()
+
+        print("Generative_OD_1_CSP_REAL")
         self.conv1 = nn.Conv2d(input_channels, channel_size, kernel_size=9, stride=1, padding=4)
         self.bn1 = nn.BatchNorm2d(channel_size)
 
@@ -19,41 +20,67 @@ class Generative_ODR_1_IM(GraspModel):
 
         self.conv_out_size = channel_size * 4
 
+        #osa-dense
         self.osa_depth = 5
         self.osa_conv_kernal = [32, 40, 48, 56]
-        self.trans_conv_kernal = [128, 128, 128, 128]
+        self.trans_conv_kernal = [64, 128, 192, 256]
         self.osa_drop_rate = 0.0
         self.osa_reduction = 1.0
+        
+        #csp
+        self.csp_part_ratio = 0.5
+
+        self.part_1_channels_1 = int(self.conv_out_size*self.csp_part_ratio)
+        self.part_2_channels_1 = self.conv_out_size - self.part_1_channels_1
+
+        self.trans1_out_kernal = self.trans_conv_kernal[0] + self.part_1_channels_1
+
+
+        self.part_1_channels_2 = int(self.trans1_out_kernal*self.csp_part_ratio)
+        self.part_2_channels_2 = self.trans1_out_kernal - self.part_1_channels_2
+
+        self.trans2_out_kernal = self.trans_conv_kernal[1] + self.part_1_channels_2
+
+
+        self.part_1_channels_3 = int(self.trans2_out_kernal*self.csp_part_ratio)
+        self.part_2_channels_3 = self.trans2_out_kernal - self.part_1_channels_3
+
+        self.trans3_out_kernal = self.trans_conv_kernal[2] + self.part_1_channels_3
+
+
+        self.part_1_channels_4 = int(self.trans3_out_kernal*self.csp_part_ratio)
+        self.part_2_channels_4 = self.trans3_out_kernal - self.part_1_channels_4
+
+        self.trans4_out_kernal = self.trans_conv_kernal[3] + self.part_1_channels_4
+        
 
         # 1st block
-        self.block1 = OSABlock(self.osa_depth, self.conv_out_size, self.osa_conv_kernal[0], OSAModule, self.osa_drop_rate)
+        self.block1 = OSABlock(self.osa_depth, self.part_2_channels_1, self.osa_conv_kernal[0], OSAModule, self.osa_drop_rate)
         self.trans1 = TransitionBlock(self.osa_conv_kernal[0]*self.osa_depth, self.trans_conv_kernal[0], dropRate=self.osa_drop_rate)
+        
         # 2nd block
-        self.block2 = OSABlock(self.osa_depth, self.trans_conv_kernal[0], self.osa_conv_kernal[1], OSAModule, self.osa_drop_rate)
+        self.block2 = OSABlock(self.osa_depth, self.part_2_channels_2, self.osa_conv_kernal[1], OSAModule, self.osa_drop_rate)
         self.trans2 = TransitionBlock(self.osa_conv_kernal[1]*self.osa_depth, self.trans_conv_kernal[1], dropRate=self.osa_drop_rate)
+
         # 3rd block
-        self.block3 = OSABlock(self.osa_depth, self.trans_conv_kernal[1], self.osa_conv_kernal[2], OSAModule, self.osa_drop_rate)
+        self.block3 = OSABlock(self.osa_depth, self.part_2_channels_3, self.osa_conv_kernal[2], OSAModule, self.osa_drop_rate)
         self.trans3 = TransitionBlock(self.osa_conv_kernal[2]*self.osa_depth, self.trans_conv_kernal[2], dropRate=self.osa_drop_rate)
+
         # 4rd block
-        self.block4 = OSABlock(self.osa_depth, self.trans_conv_kernal[2], self.osa_conv_kernal[3], OSAModule, self.osa_drop_rate)
+        self.block4 = OSABlock(self.osa_depth, self.part_2_channels_4, self.osa_conv_kernal[3], OSAModule, self.osa_drop_rate)
         self.trans4 = TransitionBlock(self.osa_conv_kernal[3]*self.osa_depth, self.trans_conv_kernal[3], dropRate=self.osa_drop_rate)
 
-        self.trans_bn = nn.BatchNorm2d(self.trans_conv_kernal[3])
-
-        self.rfb = BasicRFB_a(self.trans_conv_kernal[3], self.trans_conv_kernal[3])
-
-        self.trans_out_shape = self.trans4.state_dict()['conv1.weight'].shape[0]
-
-        self.conv4 = nn.ConvTranspose2d(self.trans_out_shape, channel_size * 2, kernel_size=4, stride=2, padding=1,
+        self.conv4 = nn.ConvTranspose2d(self.trans4_out_kernal, channel_size * 2, kernel_size=4, stride=2, padding=1,
                                         output_padding=1)
+
         self.bn4 = nn.BatchNorm2d(channel_size * 2)
 
         self.conv5 = nn.ConvTranspose2d(channel_size * 2, channel_size, kernel_size=4, stride=2, padding=2,
                                         output_padding=1)
+
         self.bn5 = nn.BatchNorm2d(channel_size)
 
         self.conv6 = nn.ConvTranspose2d(channel_size, channel_size, kernel_size=9, stride=1, padding=4)
-
 
         self.pos_output = nn.Conv2d(in_channels=channel_size, out_channels=output_channels, kernel_size=2)
         self.cos_output = nn.Conv2d(in_channels=channel_size, out_channels=output_channels, kernel_size=2)
@@ -75,19 +102,41 @@ class Generative_ODR_1_IM(GraspModel):
         x = F.relu(self.bn1(self.conv1(x_in)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
+        # print("conv_x.shape ", x.shape)
 
-        tx_1 = self.trans1(self.block1(x))
-        x = x + tx_1
-        tx_2 = self.trans2(self.block2(x))
-        x = x + tx_2
-        tx_3 = self.trans3(self.block3(x))
-        x = x + tx_3
-        tx_4 = self.trans4(self.block4(x))
-        x = x + tx_4
+        part_1 = x[:,:self.part_1_channels_1, :, :]
+        part_2 = x[:,self.part_1_channels_1:, :, :]
+        x = self.trans1(self.block1(part_2))
+        x = torch.cat((part_1, x), 1)
+        # print("part_1.shape ", part_1.shape)
+        # print("part_2.shape ", part_2.shape)
+        # print("cat_1.shape ", x.shape)
 
-        x = self.rfb(x)
+        part_1 = x[:,:self.part_1_channels_2, :, :]
+        part_2 = x[:,self.part_1_channels_2:, :, :]
+        x = self.trans2(self.block2(part_2))
+        x = torch.cat((part_1, x), 1)
+        # print("part_1.shape ", part_1.shape)
+        # print("part_2.shape ", part_2.shape)
+        # print("cat_2.shape ", x.shape)
 
-        # x = F.relu(self.trans_bn(x))
+        part_1 = x[:,:self.part_1_channels_3, :, :]
+        part_2 = x[:,self.part_1_channels_3:, :, :]
+        x = self.trans3(self.block3(part_2))
+        x = torch.cat((part_1, x), 1)
+        # print("part_1.shape ", part_1.shape)
+        # print("part_2.shape ", part_2.shape)
+        # print("cat_3.shape ", x.shape)
+
+        part_1 = x[:,:self.part_1_channels_4, :, :]
+        part_2 = x[:,self.part_1_channels_4:, :, :]
+        x = self.trans4(self.block4(part_2))
+        x = torch.cat((part_1, x), 1)
+        # print("part_1.shape ", part_1.shape)
+        # print("part_2.shape ", part_2.shape)
+        # print("cat_4.shape ", x.shape)
+
+
         x = F.relu(self.bn4(self.conv4(x)))
         x = F.relu(self.bn5(self.conv5(x)))
         x = self.conv6(x)

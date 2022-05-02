@@ -93,7 +93,7 @@ void do_remove_outerpoint(pointcloud::Ptr &input_cloud, pointcloud::Ptr  &output
   pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
   sor.setInputCloud (input_cloud);
   sor.setMeanK (20);
-  sor.setStddevMulThresh (1.0);
+  sor.setStddevMulThresh (2.0);
   sor.filter (*output_cloud);
 }
 

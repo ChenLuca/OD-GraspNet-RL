@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     tf_env = tf_py_environment.TFPyEnvironment(environment)
 
-    # baseline DQN agent
+    # # baseline DQN agent
     # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_baseline/20220306_DQN_policy_83.0_1.1929423')
 
     # # principal_curvatures 
@@ -100,13 +100,23 @@ if __name__ == '__main__':
     # # principal_curvatures gaussian input
     # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_180.0_71.76671')
 
-    # # principal_curvatures gaussian input
-    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_200.0_56.337597')
+    # principal_curvatures gaussian input
+    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_principal_curvatures_gaussian_input_image_20220414/DQN_policy_200.0_56.337597')
 
 
-    # q-sample
-    policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_q_sample_20220419/DQN_policy_1010.0_14.272098')
+    # #q-sample
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/", 'DQN_q_sample_20220419/DQN_policy_1010.0_14.272098')
 
+    # # rel action, step length = 1
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/DQN_rel/", 'DQN_220427_1431_step_lengh_1_v2/DQN_policy_465.0_4.2328258')
+
+    # # rel action, step length = 2
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/DQN_rel/", 'DQN_220428_1115_step_length_2/DQN_policy_630.0_5.9681916')
+
+    #  # rel action, step length = 1, reward v2
+    # policy_dir = os.path.join("./src/rl_grasp/scripts/trained-model/DQN_rel/", 'DQN_220428_1320_step_length1_reward_v2/DQN_policy_599.0_4.2418466')
+
+    
     saved_policy = tf.saved_model.load(policy_dir)
 
     while 1:

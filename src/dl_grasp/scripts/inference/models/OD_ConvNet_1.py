@@ -2,12 +2,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from inference.models.RJ_grasp_model import GraspModel, OSAModule, OSABlock, TransitionBlock
-from inference.models.rfb import BasicRFB_a
 
-class Generative_ODR_1_IM(GraspModel):
+class Generative_OD_1(GraspModel):
 
     def __init__(self, input_channels=4, output_channels=1, channel_size=32, dropout=False, prob=0.0):
-        super(Generative_ODR_1_IM, self).__init__()
+        super(Generative_OD_1, self).__init__()
         self.conv1 = nn.Conv2d(input_channels, channel_size, kernel_size=9, stride=1, padding=4)
         self.bn1 = nn.BatchNorm2d(channel_size)
 
@@ -21,11 +20,11 @@ class Generative_ODR_1_IM(GraspModel):
 
         self.osa_depth = 5
         self.osa_conv_kernal = [32, 40, 48, 56]
-        self.trans_conv_kernal = [128, 128, 128, 128]
+        self.trans_conv_kernal = [64, 128, 192, 256]
         self.osa_drop_rate = 0.0
         self.osa_reduction = 1.0
 
-        # 1st block
+         # 1st block
         self.block1 = OSABlock(self.osa_depth, self.conv_out_size, self.osa_conv_kernal[0], OSAModule, self.osa_drop_rate)
         self.trans1 = TransitionBlock(self.osa_conv_kernal[0]*self.osa_depth, self.trans_conv_kernal[0], dropRate=self.osa_drop_rate)
         # 2nd block
@@ -39,8 +38,6 @@ class Generative_ODR_1_IM(GraspModel):
         self.trans4 = TransitionBlock(self.osa_conv_kernal[3]*self.osa_depth, self.trans_conv_kernal[3], dropRate=self.osa_drop_rate)
 
         self.trans_bn = nn.BatchNorm2d(self.trans_conv_kernal[3])
-
-        self.rfb = BasicRFB_a(self.trans_conv_kernal[3], self.trans_conv_kernal[3])
 
         self.trans_out_shape = self.trans4.state_dict()['conv1.weight'].shape[0]
 
@@ -75,18 +72,10 @@ class Generative_ODR_1_IM(GraspModel):
         x = F.relu(self.bn1(self.conv1(x_in)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-
-        tx_1 = self.trans1(self.block1(x))
-        x = x + tx_1
-        tx_2 = self.trans2(self.block2(x))
-        x = x + tx_2
-        tx_3 = self.trans3(self.block3(x))
-        x = x + tx_3
-        tx_4 = self.trans4(self.block4(x))
-        x = x + tx_4
-
-        x = self.rfb(x)
-
+        x = self.trans1(self.block1(x))
+        x = self.trans2(self.block2(x))
+        x = self.trans3(self.block3(x))
+        x = self.trans4(self.block4(x))
         # x = F.relu(self.trans_bn(x))
         x = F.relu(self.bn4(self.conv4(x)))
         x = F.relu(self.bn5(self.conv5(x)))
