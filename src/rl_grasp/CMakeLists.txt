@@ -59,6 +59,7 @@ add_service_files(
    FILES
    loadPointCloud.srv
    get_RL_Env.srv
+   get_Agent_action.srv
 )
 
 ## Generate actions in the 'action' folder
