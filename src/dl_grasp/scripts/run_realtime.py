@@ -71,6 +71,9 @@ loc_odc2_1_bypass_v2_jacquard = dl_grasp_model_path + "/odc2_1_bypass_v2_epoch_2
 # loc_grcnn_DepthOnly_cornell = dl_grasp_model_path + "/220501_0156_grcnn_DepthOnly_cornell/epoch_20_iou_0.88"
 loc_grcnn_DepthOnly_cornell = dl_grasp_model_path + "/220501_0156_grcnn_DepthOnly_cornell/epoch_17_iou_0.90"
 
+loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_07_iou_0.89"
+# loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_01_iou_0.83"
+
 # loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_29_iou_0.94"
 loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_22_iou_0.90"
 
@@ -78,8 +81,7 @@ loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_pat
 
 # loc_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0657_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard/epoch_00_iou_0.88"
 
-loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_07_iou_0.89"
-# loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_01_iou_0.83"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')

@@ -59,6 +59,6 @@ rosrun rl_training grasp_training_dqn.py
 
 #====
 #if need, get rl training data
-rosrun pcl_utils get_cornell_data
+rosrun pcl_utils get_cornell_data 99
 
 
