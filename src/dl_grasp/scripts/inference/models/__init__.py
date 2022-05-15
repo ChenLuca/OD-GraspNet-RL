@@ -31,6 +31,10 @@ def get_network(network_name):
         from .OD_ConvNet_1_dilated import GenerativeOD_dilated
         return GenerativeOD_dilated
 
+    elif network_name == 'od_1_osa_depth_3':
+        from .OD_ConvNet_1_OSA_Depth_3 import Generative_OD_1_OSA_Depth_3
+        return Generative_OD_1_OSA_Depth_3
+
     elif network_name == 'od_2':
         from .OD_ConvNet_2 import Generative_OD_2
         return Generative_OD_2
@@ -129,9 +133,21 @@ def get_network(network_name):
         from .ODC_ConvNet_1_Bypass_V2 import Generative_ODC_1_Bypass_V2
         return Generative_ODC_1_Bypass_V2
 
+    elif network_name == 'odc_1_osa_depth_3':
+        from .ODC_ConvNet_1_OSA_Depth_3 import Generative_ODC_1_OSA_Depth_3
+        return Generative_ODC_1_OSA_Depth_3
+
     elif network_name == 'odc_1_bypass_v2_osa_depth_3':
         from .ODC_ConvNet_1_Bypass_V2_OSA_Depth_3 import Generative_ODC_1_Bypass_V2_OSA_Depth_3
         return Generative_ODC_1_Bypass_V2_OSA_Depth_3
+
+    elif network_name == 'odc_1_bypass_v2_osa_depth_3_max':
+        from .ODC_ConvNet_1_Bypass_V2_OSA_Depth_3_Max import Generative_ODC_1_Bypass_V2_OSA_Depth_3_Max
+        return Generative_ODC_1_Bypass_V2_OSA_Depth_3_Max
+
+    elif network_name == 'odc_1_im_bypass_v2_osa_depth_3':
+        from .ODC_ConvNet_1_IM_Bypass_V2_OSA_Depth_3 import Generative_ODC_1_IM_Bypass_V2_OSA_Depth_3
+        return Generative_ODC_1_IM_Bypass_V2_OSA_Depth_3
     
     elif network_name == 'odc_1_bypass_v2_osa_depth_2':
         from .ODC_ConvNet_1_Bypass_V2_OSA_Depth_2 import Generative_ODC_1_Bypass_V2_OSA_Depth_2
@@ -245,6 +261,14 @@ def get_network(network_name):
         from .ODC_ConvNet_1_CSP_OSA_Depth_5_Bypass_V2 import Generative_ODC_1_CSP_OSA_Depth_5_Bypass_V2
         return Generative_ODC_1_CSP_OSA_Depth_5_Bypass_V2
 
+    elif network_name == 'odc_1_csp_resnet_osa_depth_5_bypass_v2':
+        from .ODC_ConvNet_1_CSP_Resnet_OSA_Depth_5_Bypass_V2 import Generative_ODC_1_CSP_Resnet_OSA_Depth_5_Bypass_V2
+        return Generative_ODC_1_CSP_Resnet_OSA_Depth_5_Bypass_V2
+
+    elif network_name == 'odc_1_csp_resnet_osa_depth_5_bypass_v2_angle_care':
+        from .ODC_ConvNet_1_CSP_Resnet_OSA_Depth_5_Bypass_V2_angle_care import Generative_ODC_1_CSP_Resnet_OSA_Depth_5_Bypass_V2_angle_care
+        return Generative_ODC_1_CSP_Resnet_OSA_Depth_5_Bypass_V2_angle_care
+
     elif network_name == 'odc_3_csp_osa_depth_10':
         from .ODC_ConvNet_3_CSP_OSA_Depth_10 import Generative_ODC_3_CSP_OSA_Depth_10
         return Generative_ODC_3_CSP_OSA_Depth_10
@@ -268,6 +292,11 @@ def get_network(network_name):
     elif network_name == 'odrc_3_csp_osa_depth_10_bypass_v2':
         from .ODRC_ConvNet_3_CSP_OSA_Depth_10_Bypass_V2 import Generative_ODRC_3_CSP_OSA_Depth_10_Bypass_V2
         return Generative_ODRC_3_CSP_OSA_Depth_10_Bypass_V2
+
+    
+    elif network_name == 'odrc_1_bypass_v2_osa_depth_3':
+        from .ODRC_ConvNet_1_Bypass_V2_OSA_Depth_3 import Generative_ODRC_1_Bypass_V2_OSA_Depth_3
+        return Generative_ODRC_1_Bypass_V2_OSA_Depth_3
     #=====================================================
         # not that strange !!
     elif network_name == 'real_strange':

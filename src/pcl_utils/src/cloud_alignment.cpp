@@ -32,6 +32,8 @@
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 
+#include "pcl_utils/setPointCloud.h"
+
 using namespace std;
 
 //=============

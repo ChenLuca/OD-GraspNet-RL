@@ -71,21 +71,45 @@ loc_odc2_1_bypass_v2_jacquard = dl_grasp_model_path + "/odc2_1_bypass_v2_epoch_2
 # loc_grcnn_DepthOnly_cornell = dl_grasp_model_path + "/220501_0156_grcnn_DepthOnly_cornell/epoch_20_iou_0.88"
 loc_grcnn_DepthOnly_cornell = dl_grasp_model_path + "/220501_0156_grcnn_DepthOnly_cornell/epoch_17_iou_0.90"
 
-loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_07_iou_0.89"
-# loc_grcnn_input300_batchsize64_DepthOnly_jazquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_01_iou_0.83"
+loc_grcnn_input300_batchsize64_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_05_iou_0.90"
+loc_grcnn_default_jacquard = dl_grasp_model_path + "/jacquard-d-grconvnet3-drop0-ch32/epoch_50_iou_0.94"
 
 # loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_29_iou_0.94"
 loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_22_iou_0.90"
 
+# good
 loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0635_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard/epoch_07_iou_0.87"
 
-# loc_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0657_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard/epoch_00_iou_0.88"
+# not bad
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0635_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard/epoch_04_iou_0.89"
 
+# not bad
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0635_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard/epoch_10_iou_0.90"
+
+# maybe..?
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0635_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard/epoch_14_iou_0.90"
+
+# loc_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0657_odc_1_bypass_v2_osa_depth_3_input300_batchsize64_DepthOnly_jacquard/epoch_21_iou_0.91"
+
+# ---dropout
+# not bad
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220514_1248_odc_1_bypass_v2_osa_depth_3_input300_depthonly_dropout_jacquard/epoch_01_iou_0.82"
+# maybe...?
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220514_1248_odc_1_bypass_v2_osa_depth_3_input300_depthonly_dropout_jacquard/epoch_28_iou_0.91"
+# good
+# loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220514_1248_odc_1_bypass_v2_osa_depth_3_input300_depthonly_dropout_jacquard/epoch_33_iou_0.90"
+# ---dropout
+
+# ---odrc
+# not bad
+# loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_01_iou_0.83"
+# realy not bad
+loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_04_iou_0.89"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard,
+    parser.add_argument('--network', type=str, default=loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
@@ -193,50 +217,52 @@ if __name__ == '__main__':
     device = get_device(args.force_cpu)
 
     while not rospy.is_shutdown():
-        try:
-            fig = plt.figure(figsize=(10, 10))
-            while True:
-                rgb = rgb_image
-                depth = np.expand_dims(depth_image, axis=2)
-                # x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
-                x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
+        if (depth_image.shape[0]!=0):
+            try:
+                fig = plt.figure(figsize=(10, 10))
+                while 1:
+
+                    rgb = rgb_image
+                    depth = np.expand_dims(depth_image, axis=2)
+                    # x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
+                    x, depth_img, rgb_img = cam_data.get_data(rgb=rgb, depth=depth)
 
 
-                with torch.no_grad():
-                    xc = x.to(device)
-                    pred = net.predict(xc)
+                    with torch.no_grad():
+                        xc = x.to(device)
+                        pred = net.predict(xc)
 
-                    q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
-                    
-                    global_q_img = q_img
-                    global_ang_img = ang_img
+                        q_img, ang_img, width_img = post_process_output(pred['pos'], pred['cos'], pred['sin'], pred['width'])
+                        
+                        global_q_img = q_img
+                        global_ang_img = ang_img
 
-                    gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
+                        gs = detect_grasps(q_img, ang_img, width_img=width_img, no_grasps=no_grasps)
 
-                    if gs is not None:
-                        for g in gs:
-                            osa_result_msg = dl_grasp_result()
-                            osa_result_msg.y = g.center[0] + 110
-                            osa_result_msg.x = g.center[1] + 190
-                            osa_result_msg.angle = g.angle
-                            osa_result_msg.length = g.length
-                            osa_result_msg.width = g.width
-                            pub_osa_result.publish(osa_result_msg)
+                        if gs is not None:
+                            for g in gs:
+                                osa_result_msg = dl_grasp_result()
+                                osa_result_msg.y = g.center[0] + 110
+                                osa_result_msg.x = g.center[1] + 190
+                                osa_result_msg.angle = g.angle
+                                osa_result_msg.length = g.length
+                                osa_result_msg.width = g.width
+                                pub_osa_result.publish(osa_result_msg)
 
-                            print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
+                                print("center(y, x):{}, angle:{}, length:{}, width:{} ".format(g.center, g.angle, g.length, g.width))
 
-                            rotation = AngleAxis_rotation_msg()
-                            rotation.x = 0
-                            rotation.y = 0
-                            rotation.z = -1* g.angle 
-                            pub_AngleAxisRotation.publish(rotation)
+                                rotation = AngleAxis_rotation_msg()
+                                rotation.x = 0
+                                rotation.y = 0
+                                rotation.z = -1* g.angle 
+                                pub_AngleAxisRotation.publish(rotation)
 
-                    plot_results(fig=fig,
-                                rgb_img=cam_data.get_rgb(rgb, False),
-                                depth_img=np.squeeze(cam_data.get_depth(depth)),
-                                grasp_q_img=q_img,
-                                grasp_angle_img=ang_img,
-                                no_grasps=args.n_grasps,
-                                grasp_width_img=width_img)
-        finally:
-            print('bye grcnn_inference!')
+                        plot_results(fig=fig,
+                                    rgb_img=cam_data.get_rgb(rgb, False),
+                                    depth_img=np.squeeze(cam_data.get_depth(depth)),
+                                    grasp_q_img=q_img,
+                                    grasp_angle_img=ang_img,
+                                    no_grasps=args.n_grasps,
+                                    grasp_width_img=width_img)
+            finally:
+                print('bye grcnn_inference!')
