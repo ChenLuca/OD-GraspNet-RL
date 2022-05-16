@@ -73,6 +73,7 @@ loc_grcnn_DepthOnly_cornell = dl_grasp_model_path + "/220501_0156_grcnn_DepthOnl
 
 loc_grcnn_input300_batchsize64_DepthOnly_jacquard = dl_grasp_model_path + "/220502_0700_grcnn_input300_batchsize64_DepthOnly_jacquard/epoch_05_iou_0.90"
 loc_grcnn_default_jacquard = dl_grasp_model_path + "/jacquard-d-grconvnet3-drop0-ch32/epoch_50_iou_0.94"
+loc_grcnn_input300_DepthOnly_jacquard = dl_grasp_model_path + "/220502_1722_grcnn_input300_DepthOnly_jacquard/epoch_23_iou_0.90"
 
 # loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_29_iou_0.94"
 loc_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell = dl_grasp_model_path + "/220501_0542_odc_1_bypass_v2_osa_depth_3_DepthOnly_cornell/epoch_22_iou_0.90"
@@ -104,12 +105,12 @@ loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_pat
 # not bad
 # loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_01_iou_0.83"
 # realy not bad
-loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_04_iou_0.89"
+# loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_04_iou_0.89"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard,
+    parser.add_argument('--network', type=str, default=loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
