@@ -77,6 +77,7 @@ add_service_files(
   setZPassthrough.srv
   get_RL_Env.srv
   sample_q_image.srv
+  setDLGraspPoint.srv
 )
 
 ## Generate actions in the 'action' folder
