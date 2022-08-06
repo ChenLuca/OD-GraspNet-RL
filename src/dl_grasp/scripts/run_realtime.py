@@ -107,16 +107,23 @@ loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard = dl_grasp_model_pat
 # realy not bad
 # loc_odrc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard  = dl_grasp_model_path + "/220512_0948_odrc_1_bypass_v2_osa_depth_3_jacquard/epoch_04_iou_0.89"
 
+# --odc_shuffle_v2_4
+loc_odc_shuffle_v2_4_jacquard = dl_grasp_model_path + "/220524_0030_odc_shuffle_v2_4_ds-shuffle_epoch300_NoDataAugment_jacquard/epoch_85_iou_0.94"
+loc_odc_shuffle_v2_4_cornell_iw = dl_grasp_model_path + "/220530_0440_odc_shuffle_v2_4_ds-shuffle_cornell/epoch_24_iou_0.97"
+loc_odc_shuffle_v2_4_cornell_ow = dl_grasp_model_path + "/220530_0223_odc_shuffle_v2_4_cornell/epoch_20_iou_0.96"
+
+
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate network')
-    parser.add_argument('--network', type=str, default=loc_odc_1_bypass_v2_osa_depth_3_input300_DepthOnly_jacquard,
+    parser.add_argument('--network', type=str, default=loc_odc_shuffle_v2_4_jacquard,
                         help='Path to saved network to evaluate')
     parser.add_argument('--use-depth', type=int, default=1,
                         help='Use Depth image for evaluation (1/0)')
     parser.add_argument('--use-rgb', type=int, default=0,
                         help='Use RGB image for evaluation (1/0)')
-    parser.add_argument('--n-grasps', type=int, default=1,
+    parser.add_argument('--n-grasps', type=int, default=5,
                         help='Number of grasps to consider per image')
     parser.add_argument('--cpu', dest='force_cpu', action='store_true', default=False,
                         help='Force code to run in CPU mode')
